@@ -48,8 +48,12 @@ backend:
 frontend:
 	cd frontend && npm run dev
 
+# Tests first: `&&` short-circuits, so ordering decides what you learn when it fails. Lint-first
+# would let a missing blank line gate the only question that matters — does the code still work?
+# Explicit `src tests` paths, not a bare `ruff check`: an explicit path overrides `exclude`, so a
+# stray ignore can't quietly shrink the gate to nothing, and a bad `cd` fails loudly with E902.
 test:
-	cd backend && uv run pytest -q && uv run ruff check
+	cd backend && uv run pytest -q && uv run ruff check src tests
 	cd frontend && npm run build
 
 clean:

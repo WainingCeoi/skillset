@@ -27,8 +27,9 @@ prefer adapting them over writing from a blank page.
 - **backend/host.py** — the LAN launcher invoked by `make host`. Reads the machine's mDNS name,
   finds a free port by real bind test, prints URLs + a security banner, then serves on
   `0.0.0.0` with **one worker**. Set the `APP` constant to your `<app>_api.main:app`.
-- **backend/pyproject-snippet.toml** — the hatch `src` layout config + the `filterwarnings` and
-  `--frozen` notes. Merge into the backend `pyproject.toml`.
+- **backend/pyproject-snippet.toml** — the hatch `src` layout config, the ruff/PEP 8 gate
+  (declared dev dep, `preview = true`, the engine's `per-file-ignores` ledger), and the
+  `filterwarnings` + `--frozen` notes. Merge into the backend `pyproject.toml`.
 - **backend/.env.example** — config header including the hosting vars (`HOST`, `PORT`,
   static-dir override) and the "no-secret vs. set-your-secret" note.
 - **frontend/vite.config.js** — dev server that proxies `/api` to the backend (same-origin
@@ -40,3 +41,7 @@ prefer adapting them over writing from a blank page.
   `make` commands incl. `make host`, architecture, config, and the single `uv run pytest` test
   command). Prefer this single root README over per-sub-project READMEs.
 - **gitignore** — root ignore (rename to `.gitignore`). Each sub-project gets its own too.
+- **No component or layout template — on purpose.** `vite.config.js` and `api.js` are plumbing
+  (proxy + transport); there is deliberately no `App.jsx` to copy. The React UI is a *redesign*
+  driven by the app's primary action (Phase 4), so a bundled layout would just be a second thing
+  to transliterate. See `references/frontend-redesign.md`.

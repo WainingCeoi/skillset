@@ -23,7 +23,7 @@ monorepo that runs with one command.
 The single most important principle: **the domain logic (the "engine") should survive the
 refactor almost untouched.** The value of the app is in that code; the UI framework is
 disposable. So the goal is to *lift the engine out intact*, put a thin FastAPI layer in front
-of it, and rebuild the UI in React — not to rewrite the engine. If you find yourself editing
+of it, and redesign the UI in React — not to rewrite the engine. If you find yourself editing
 core algorithm code to make the web layer work, stop: that's a design smell, and the seam is
 in the wrong place.
 
@@ -51,9 +51,9 @@ project/
     └── src/              # api.js (fetch + SSE wrapper) + components
 ```
 
-`assets/` in this skill holds drop-in versions of every non-obvious file (Makefile, the LAN
-`host.py`, the `create_app` skeleton, `vite.config.js`, `api.js`, `.env.example`, the
-`pyproject.toml` src-layout block, `.gitignore`). **Copy them and adapt the placeholders**
+`assets/` in this skill holds drop-in versions of every non-obvious file — the **Bundled
+resources** table below maps each one to the phase that needs it. **Copy them and adapt the
+placeholders**
 rather than writing from a blank page — they encode fixes for mistakes that are easy to
 rediscover the hard way (Vite binding IPv6-only, `uv run` rewriting the lockfile, the SSE
 threadpool trap, the single-worker requirement). Read `assets/README.md` for the placeholder
@@ -76,16 +76,15 @@ to land. This is the default workflow — follow it unless the user says otherwi
   branch. Leave the branch in place for the user to review, push, and merge back when they're
   ready. That decision is theirs, not the skill's.
 
-Example messages (one per phase):
+Example messages:
 `feat(backend): app factory + lifespan building one engine on app.state`
-`feat(frontend): React+Vite SPA calling /api through a single api.js`
-`feat(host): make host — LAN launcher on 0.0.0.0 with mDNS name + free-port scan`
+`style(engine): ruff --fix on the lifted engine (no behavior change)`
 
 ## Phases
 
 Do these in order. Each builds on the last, and several early decisions (where the engine seam
 is, what streams) determine later structure. Commit at each phase boundary once it verifies, per
-**Version control** above.
+**Version control** above — the gates are judged at the boundary, not at every commit inside it.
 
 ### Phase 0 — Discover (read only; report before editing)
 
@@ -120,10 +119,8 @@ essentials:
 >   explicit go-ahead to wait for).
 > - **(c) Production database with real data** — **never delete it.** Plan an import/migration
 >   into the new backend's store as an explicit step, and verify the data survived (row/document
->   counts + spot checks) before considering the refactor done.
->
-> This mirrors *verify before deleting*: a stale comment or filename calling a store "test data"
-> is not permission to drop it — the user's explicit answer is.
+>   counts + spot checks) before considering the refactor done. A stale comment or filename
+>   calling a store "test data" is not permission to drop it — the user's explicit answer is.
 
 ### Phase 1 — Scaffold the monorepo
 
@@ -140,6 +137,9 @@ strips the `src/` prefix so the engine and API install at the wheel root and imp
 the engine package into `backend/src/<engine>/` **unchanged** — same module names, same internal
 imports — so existing `from <engine> import X` lines keep working verbatim. A top-level `config`
 module can stay a module (not a package) if the engine imports it as `from config import ...`.
+Commit that lift with **zero content edits** — `git diff -M` then shows pure renames, so the
+reviewer confirms the engine is intact without reading it. Lint fixes come next, separately
+(Phase 2); folding them in here is how a real change hides inside a 40-file diff.
 
 ### Phase 2 — Backend: app factory, lifespan, DI
 
@@ -162,6 +162,17 @@ Key patterns (rationale in `references/backend-architecture.md`):
 - **Tests**: put backend tests under `backend/tests/` and configure `testpaths` so the whole
   suite runs with **one command, `uv run pytest`** (no per-package invocations). Exercise the app
   through `create_app(engine=<fake>)` with an injected fake engine — fast, no models, no network.
+- **Lint gate — PEP 8 and `ruff check`-clean, zero errors.** Defined by the snippet's
+  `[tool.ruff]` block (ruff a *declared* dev dep, `preview = true`); run from `backend/` as
+  `uv run ruff check src tests`, and part of `make test`. New code in `<app>_api/` has no excuse:
+  fix every finding. The lifted engine is the hard case — read `references/python-style.md`
+  before running `--fix` on it. The short version: **the engine's tests are the oracle, not your
+  sense of which fixes "look mechanical"** — ruff's *safe* `--fix` silently deletes side-effect
+  imports (that unused-looking `from models import User` registers a table) and rewrites
+  expressions inside your algorithm. So: `--fix`, then run the engine's tests. Green, keep. Red,
+  revert and declare the code in `per-file-ignores` for `src/<engine>/**` — named codes, with
+  reasons: a **ledger of inherited debt**, never a family, never `ALL`, never for `<app>_api/**`.
+  No engine tests → don't `--fix` the engine; a refactor is not where you acquire coverage.
 
 ### Phase 3 — Streaming (SSE), if anything streams
 
@@ -185,10 +196,27 @@ Scaffold Vite (`assets/frontend/vite.config.js` proxies `/api` → backend so de
 same-origin and SSE needs no CORS). Centralize all HTTP in one `api.js`
 (`assets/frontend/api.js`) that wraps every endpoint and provides the SSE reader — components
 never call `fetch` directly. Default to plain JS unless the project already uses TypeScript.
-Design the UI around the app's primary action (chat-first, dashboard-first, etc.); don't
-mechanically transliterate the old Streamlit layout — a sidebar + focused main pane usually
-beats a wall of stacked widgets. (If the user wants help with visual design, the
-`frontend-design` skill pairs well here.)
+**The UI is a redesign, not a port.** Refer to the old screen freely — it's the source of
+requirements — but the old *layout* carries no design information: one top-to-bottom column,
+`st.sidebar`, `st.expander`, a full-page rerun on every change is what the Streamlit execution
+model *permits*, not what anyone chose. Transliterate it and you inherit every constraint while
+abandoning the reason you left. Design around the primary action Phase 0 named; read
+`references/frontend-redesign.md` before writing components for the old-idiom→React translation
+table. Two checks, and a port fails the first:
+
+- **The delta list.** Name three things the React UI does that the Streamlit model structurally
+  could not, and point at the code: state surviving an interaction without a rerun; a region that
+  loads or fails independently; a deep-linkable view; tokens appended to the DOM without a
+  redraw; a keyboard path to the primary action. Fewer than three and you ported it.
+- **The parity inventory.** Phase 0's capability list is the contract — layout is discarded,
+  features are not. Say where each item now lives. A port passes this trivially; it catches the
+  opposite failure, "redesign" as a euphemism for dropping what you didn't rebuild.
+
+Carry the old app's **brand** forward — theme colors, page title, favicon, logo (Phase 0 found
+them): that config is the one part of the old UI a human actually chose, and the Vite default
+palette titled "Vite + React" is a downgrade, not a redesign. Visual direction beyond that is the
+**`frontend-design` skill's** call — use it, and don't gold-plate past a layout that runs and
+works at 390px wide.
 
 ### Phase 5 — Universal entrance (Makefile)
 
@@ -212,17 +240,16 @@ printing `http://<name>.local:<port>`, auto-advancing past a busy port, and runn
 worker**. Full rationale in `references/lan-host.md`. Two things that must carry through:
 
 - **One worker, always**, if the app has any of: a big in-memory model, an in-process cache, a
-  single-active-job registry, or boot migrations. Multiple workers would double-load the model
-  and break in-process invariants. Never enable `--workers >1` for these apps.
+  single-active-job registry, or boot migrations. Never enable `--workers >1` for these apps;
+  `references/backend-architecture.md` has the why.
 - **Security — 0.0.0.0 is not localhost.** Surface it loudly (the template's banner does):
   binding to the LAN exposes the app to everyone on the network. If the app has auth, its
   secret/admin password must be real before exposing. **Cookie foot-gun**: if the framework
-  sets a `Secure` (HTTPS-only) session cookie in "production" mode and you serve plain HTTP,
-  the browser silently drops it and login won't stick — do *not* enable HTTPS-cookie/production
-  mode for a plain-HTTP LAN host. If the app has no auth/cookies at all, say so — the exposure
-  (unauthenticated access), not a cookie, is the real risk. Don't add HTTPS/PWA unless asked (a
-  LAN cert means trusting a local CA on every device; a PWA/service worker needs a secure
-  context and won't work over plain HTTP). Keep a `HOST=127.0.0.1` override for local-only.
+  sets a `Secure` (HTTPS-only) session cookie in "production" mode and you serve plain HTTP, the
+  browser silently drops it and login won't stick — never enable production/HTTPS-cookie mode for
+  a plain-HTTP LAN host. If the app has no auth at all, say so — unauthenticated access, not a
+  cookie, is then the real risk. Don't add HTTPS/PWA unless asked (`references/lan-host.md`
+  explains both). Keep a `HOST=127.0.0.1` override for local-only.
 
 ### Phase 7 — Verify by observation
 
@@ -233,8 +260,11 @@ asserting it should work:
 - `make start`: build first (a bare run 404s with no `dist`), then one process serves UI + API
   same-origin on loopback.
 - `make host`: `lsof -iTCP:<port> -sTCP:LISTEN` shows `*:<port>` (0.0.0.0), not 127.0.0.1;
-  `curl` the machine's LAN IP **and** `<name>.local` → 2xx; occupy the base port and confirm it
-  advances; tear down and confirm no leftover listeners.
+  `curl` the LAN IP **and** `<name>.local` → 2xx; occupy the base port and confirm it advances.
+- `uv run ruff check src tests` (from `backend/`): zero errors. **`All checks passed!` is not
+  evidence on its own** — ruff prints it and exits 0 even when it linted *zero files*, and the
+  `warning: No Python files found` goes to stderr, where a stdout capture loses it. Prove the
+  gate fires: add `import os` to a file, watch F401 fail it, undo.
 - Run the whole test suite with the single command the README documents — **`uv run pytest`**
   (all backend tests live under `backend/tests/`, so one invocation collects them). Then
   `git status`: confirm the package manager didn't rewrite `pyproject`/lockfiles as a side effect
@@ -249,10 +279,18 @@ asserting it should work:
 - Binding `0.0.0.0` without loudly flagging the security implications.
 - Hardcoding a hostname/IP for the LAN host instead of reading the machine's mDNS name.
 - Claiming success from a dry run. Blind-deleting config a user calls "old" without grepping
-  to confirm it's unused. Silencing a warning instead of fixing it.
-- Committing the refactor straight onto the default branch instead of a working branch.
-- Adding a `Co-Authored-By` / "Generated with" / attribution trailer to commit messages.
-- Pushing or merging to the default branch — that's the user's decision, not the skill's.
+  to confirm it's unused. Blanket-muting a warning instead of fixing it — or, in code you've
+  promised not to rewrite, declaring it narrowly and by name.
+- Transliterating the old UI — a component per `st.*` call, stacked in the original order — or
+  rebuilding the full-page rerun in React by refetching everything on every change.
+- "Redesigning" by quietly dropping features, or by discarding the old app's brand along with its
+  layout. Layout parity is optional; feature and brand parity are not.
+- Renaming or restructuring lifted engine code to satisfy a linter — that's rewriting the engine,
+  not lifting it. So is `ruff format` across it. So is trusting `--fix` on an engine with no tests.
+- Squashing the verbatim lift and the lint fixes into one commit, so the reviewer can no longer
+  tell which lines the refactor actually changed.
+- Ignoring version control: committing to the default branch instead of a working branch, adding
+  a `Co-Authored-By`/"Generated with" trailer, or pushing/merging — all the user's call.
 - Deleting or recreating a database the user hasn't confirmed is disposable, or migrating/
   dropping production data without their explicit go-ahead.
 
@@ -264,7 +302,7 @@ asserting it should work:
 | `assets/Makefile` | Phase 5/6 — the universal entrance incl. the `host` target |
 | `assets/backend/main.py` | Phase 2 — `create_app` + lifespan + DI + single-origin mount skeleton |
 | `assets/backend/host.py` | Phase 6 — the LAN launcher (mDNS name, free port, 0.0.0.0, banner) |
-| `assets/backend/pyproject-snippet.toml` | Phase 1 — src-layout hatch config + `--frozen` note |
+| `assets/backend/pyproject-snippet.toml` | Phase 1/2 — src-layout hatch config + the ruff/PEP 8 gate + `--frozen` note |
 | `assets/backend/.env.example` | Phase 2/6 — config header incl. hosting vars |
 | `assets/frontend/vite.config.js` | Phase 4 — the `/api` dev proxy |
 | `assets/frontend/api.js` | Phase 4 — HTTP wrapper + the manual SSE stream reader |
@@ -272,5 +310,7 @@ asserting it should work:
 | `assets/gitignore` | Phase 1 — root ignore |
 | `references/discovery-checklist.md` | Phase 0 — full discover checklist |
 | `references/backend-architecture.md` | Phase 2 — why app-factory/lifespan/single-shared-object/single-worker |
+| `references/python-style.md` | Phase 2 — read before `--fix`ing the lifted engine: the gate, the tests-as-oracle rule, the ledger |
+| `references/frontend-redesign.md` | Phase 4 — read before writing components: old-idiom→React table, the delta list, the parity inventory |
 | `references/sse-streaming.md` | Phase 3 — the two SSE flows, with the threadpool trap explained |
 | `references/lan-host.md` | Phase 6 — mDNS, free-port scan, single worker, security guardrails |

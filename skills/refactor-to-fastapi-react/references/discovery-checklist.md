@@ -18,7 +18,18 @@ across parallel read-only subagents (one per dimension) and synthesize.
   computation into a plain function the UI merely calls is your first real refactor task, and
   it's worth doing in the *old* codebase first if that's low-risk, so the seam is proven before
   you move files.
-- What is the app's single most important user action? The UI should be organized around it.
+
+## 2b. The UI: capabilities and brand (Phase 4's inputs)
+- What is the app's single most important user action? The redesign is organized around it, and
+  knowing it means you don't have to run a design questionnaire — you can decide and show.
+- **Capability inventory** — one line per feature, input, output, and piece of state shown to the
+  user. Write it now, while you're already reading the UI code. Phase 4 discards the *layout* and
+  rebuilds against this list; anything not on it silently disappears.
+- **Brand & assets** — `.streamlit/config.toml` `[theme]` (primaryColor, background, font),
+  `st.set_page_config(page_title=, page_icon=)`, logo/image files the UI loads, any custom CSS in
+  `st.markdown(..., unsafe_allow_html=True)`. **The layout is discarded; the brand is not.** The
+  theme config is the one artifact in the old UI where a human actually made a design decision —
+  everything else is what the framework permitted. Carry it forward; ask before changing it.
 
 ## 3. In-memory state
 - What lives between interactions: a loaded model, a DB/client handle, a cache, `st.session_state`,
@@ -57,9 +68,14 @@ across parallel read-only subagents (one per dimension) and synthesize.
 - **Side-effect warning**: `uv run` re-resolves and can rewrite `uv.lock` just from running;
   `npm install` can rewrite `package-lock.json`. Plan `uv run --frozen` / `npm ci` where the
   lock must not move, and check `git status` after (Phase 7).
+- **Existing lint/style config**: a `.flake8`, `setup.cfg`, `[tool.black]`, `[tool.ruff]`, or
+  `.editorconfig`. You only care about one number: the old **max line length**. Tighter than our
+  100 is a non-event. **Looser** (120, or none) means the lifted engine will trip E501 — which is
+  *not* autofixable at any safety level — so it goes on the ledger, not through a rewrap.
 
 ## Output of Phase 0
-A short map: launch commands + ports; the engine/UI seam (what lifts, what gets rewritten);
-the shared-state objects; the streaming operations; the real config vars + any secrets; the
-data/database situation + the user's chosen handling (none / disposable / migrate); the
-package manager + lockfile risk. This is enough to design the routers and the app-state model.
+A short map: launch commands + ports; the engine/UI seam (what lifts, what gets rewritten); the
+UI capability inventory + brand/theme assets (Phase 4's contract); the shared-state objects; the
+streaming operations; the real config vars + any secrets; the data/database situation + the
+user's chosen handling (none / disposable / migrate); the package manager + lockfile risk + the
+old max line length. That's enough to design the routers, the app-state model, and the UI.

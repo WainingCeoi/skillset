@@ -60,10 +60,11 @@ Settings are read from environment variables / a `.env` file (copy `backend/.env
 ## Development
 
 ```bash
-uv run pytest    # run ALL backend tests (from backend/) — the single test command
-make test        # the above + lint + a frontend build check
-make build       # frontend/dist only
-make clean        # remove build artifacts
+uv run pytest           # run ALL backend tests (from backend/) — the single test command
+uv run ruff check src tests   # lint the backend: PEP 8 via ruff (E/W/F/N, 100 cols) — zero errors
+make test               # both of the above + a frontend build check
+make build              # frontend/dist only
+make clean              # remove build artifacts
 ```
 
 ## Requirements

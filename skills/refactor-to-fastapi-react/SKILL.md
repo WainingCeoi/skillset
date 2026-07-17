@@ -125,12 +125,20 @@ essentials:
 ### Phase 1 — Scaffold the monorepo
 
 **First create the working branch** (e.g. `refactor/fastapi-react`) off the current branch — all
-subsequent phases commit onto it. Then create `backend/` and `frontend/`, each with its own
-`.gitignore`, a root `.gitignore`, and the backend **src layout**. For docs, write **one comprehensive project-root `README.md`** — start
-from `assets/README-template.md`. It covers quick start, the `make` commands (incl. `make host`),
-architecture, config, and the single test command. That one root README is what most users
-actually want; **don't scatter docs across per-sub-project READMEs** unless a sub-project
-genuinely needs its own.
+subsequent phases commit onto it. Then create `backend/` and `frontend/` and the backend **src
+layout**.
+
+**Three `.gitignore`s, nothing duplicated between them** (templates: `assets/gitignore`,
+`assets/backend/gitignore`, `assets/frontend/gitignore`). The root file gets only what belongs to
+no sub-project — `.DS_Store`, editor state, `.claude/`. Each sub-project ignores its own caches:
+`backend/` takes `.venv`/`__pycache__`/`.env`/`data/`, `frontend/` takes `node_modules`/`dist`.
+Git reads the nearest `.gitignore`, so a `backend/.venv/` line at the root covers nothing the
+sub-project file misses — it just rots on the first rename and splits one answer across two
+files. (Docs go the other way — **one** comprehensive project-root `README.md`, from
+`assets/README-template.md`: quick start, the `make` commands incl. `make host`, architecture,
+config, the single test command. **Don't scatter docs across per-sub-project READMEs** unless one
+genuinely needs its own. The asymmetry is real: git resolves ignores bottom-up from the file
+being checked, so scoping them helps; a human reads docs top-down and wants one place.)
 
 Use the `pyproject.toml` block from `assets/backend/pyproject-snippet.toml`: `sources = ["src"]`
 strips the `src/` prefix so the engine and API install at the wheel root and import cleanly. Lift
@@ -307,7 +315,7 @@ asserting it should work:
 | `assets/frontend/vite.config.js` | Phase 4 — the `/api` dev proxy |
 | `assets/frontend/api.js` | Phase 4 — HTTP wrapper + the manual SSE stream reader |
 | `assets/README-template.md` | Phase 1 — the single comprehensive project-root README skeleton |
-| `assets/gitignore` | Phase 1 — root ignore |
+| `assets/gitignore`, `assets/backend/gitignore`, `assets/frontend/gitignore` | Phase 1 — the three ignores: root = shared only, sub-projects own their caches |
 | `references/discovery-checklist.md` | Phase 0 — full discover checklist |
 | `references/backend-architecture.md` | Phase 2 — why app-factory/lifespan/single-shared-object/single-worker |
 | `references/python-style.md` | Phase 2 — read before `--fix`ing the lifted engine: the gate, the tests-as-oracle rule, the ledger |

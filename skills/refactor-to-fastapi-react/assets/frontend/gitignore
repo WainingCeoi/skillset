@@ -1,0 +1,25 @@
+# frontend/.gitignore (rename to .gitignore) — NODE/FRONTEND ONLY.
+#
+# Shared OS/editor/agent patterns live in the ROOT .gitignore; don't repeat them here. Paths are
+# relative to frontend/, so no `frontend/` prefix.
+#
+# HEADS UP: `npm create vite` scaffolds its OWN frontend/.gitignore that also lists .DS_Store and
+# .vscode/. Trim those when you scaffold — they're the root's job, and leaving them is exactly
+# the duplication this split exists to remove.
+
+node_modules/
+
+# Vite build output. `make build` regenerates it; `make start` / `make host` serve it.
+dist/
+dist-ssr/
+
+# Local env overrides. Vite only exposes VITE_-prefixed vars to the browser — so a "secret" in
+# any .env here ships to every client that loads the page. Don't put one there, ignored or not.
+.env.local
+.env.*.local
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*

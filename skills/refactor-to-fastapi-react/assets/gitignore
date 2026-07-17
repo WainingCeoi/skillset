@@ -1,20 +1,24 @@
-# Root .gitignore (rename to .gitignore). Each sub-project also gets its own.
+# Root .gitignore (rename to .gitignore) — WHOLE-REPO concerns ONLY.
+#
+# The rule: this file lists only what belongs to no single sub-project — OS noise, editor state,
+# agent scratch. Everything a sub-project owns lives in THAT sub-project's file:
+# backend/.gitignore (.venv, __pycache__, .env, data/) and frontend/.gitignore (node_modules,
+# dist). Don't restate them here.
+#
+# Why: git reads the nearest .gitignore, so a `backend/.venv/` line up here buys nothing the
+# sub-project file doesn't already cover — it just rots the day someone renames a folder, and it
+# splits "what does the backend ignore?" across two files. Note too that a bare `.venv/` already
+# matches at ANY depth, so a root `.venv/` plus a `backend/.venv/` was always one rule written
+# twice.
 
-# Python / backend
-__pycache__/
-*.py[cod]
-.venv/
-backend/.venv/
-backend/data/          # runtime data (databases, uploads) — never commit
-.env
-
-# Node / frontend
-node_modules/
-frontend/dist/
-frontend/node_modules/
-
-# OS / editor
+# macOS / Windows
 .DS_Store
-*.swp
+Thumbs.db
+
+# Editors
 .idea/
 .vscode/
+*.swp
+
+# Agent / assistant scratch
+.claude/

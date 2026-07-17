@@ -1,0 +1,31 @@
+# backend/.gitignore (rename to .gitignore) — PYTHON/BACKEND ONLY.
+#
+# Shared OS/editor/agent patterns live in the ROOT .gitignore; don't repeat them here, and don't
+# push these up to the root. Paths are relative to backend/, which is why none of them carry a
+# `backend/` prefix.
+
+# Virtualenv. uv writes .venv/.gitignore ("*") so a uv-made env self-ignores — but a stdlib
+# `python -m venv .venv` does NOT, so keep this line.
+.venv/
+
+# Bytecode
+__pycache__/
+*.py[cod]
+
+# Secrets and local config. .env.example is the committed template; .env never is.
+.env
+
+# Runtime data — databases, uploads, vector stores. Never commit. (If the app writes somewhere
+# else, fix THIS line rather than adding a second one at the root.)
+data/
+
+# Wheel/sdist output, if you ever run `uv build`. (Nothing in `make` does — the backend is
+# installed into .venv, not built — but it's one line and the artifacts are 100% generated.)
+dist/
+
+# uv.lock is deliberately NOT ignored: it's committed, and `uv run --frozen` depends on it.
+#
+# Deliberately NOT listed either: .ruff_cache/, .pytest_cache/, and *.egg-info/. The first two
+# write their own .gitignore inside the cache, so they self-ignore (`head .ruff_cache/.gitignore`
+# to confirm). The third is a setuptools artifact — this project builds with hatchling and never
+# produces one. Don't "helpfully" add them back.

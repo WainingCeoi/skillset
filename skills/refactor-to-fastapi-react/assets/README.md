@@ -40,7 +40,13 @@ prefer adapting them over writing from a blank page.
 - **README-template.md** — the ONE comprehensive project-root README to write (quick start, the
   `make` commands incl. `make host`, architecture, config, and the single `uv run pytest` test
   command). Prefer this single root README over per-sub-project READMEs.
-- **gitignore** — root ignore (rename to `.gitignore`). Each sub-project gets its own too.
+- **gitignore** (three of them: root, `backend/`, `frontend/`) — rename each to `.gitignore` in
+  its own directory. **One rule: the root file holds only what belongs to no sub-project** (OS
+  noise, editor state, `.claude/`); each sub-project ignores its own caches (`backend/`: `.venv`,
+  `__pycache__`, `.env`, `data/`; `frontend/`: `node_modules`, `dist`). Nothing appears in two
+  files. Git reads the nearest `.gitignore`, so a `backend/.venv/` line at the root adds nothing
+  and only rots — and since a bare `.venv/` already matches at any depth, it was the same rule
+  written twice anyway.
 - **No component or layout template — on purpose.** `vite.config.js` and `api.js` are plumbing
   (proxy + transport); there is deliberately no `App.jsx` to copy. The React UI is a *redesign*
   driven by the app's primary action (Phase 4), so a bundled layout would just be a second thing

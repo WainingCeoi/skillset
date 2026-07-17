@@ -210,7 +210,7 @@ requirements — but the old *layout* carries no design information: one top-to-
 model *permits*, not what anyone chose. Transliterate it and you inherit every constraint while
 abandoning the reason you left. Design around the primary action Phase 0 named; read
 `references/frontend-redesign.md` before writing components for the old-idiom→React translation
-table. Two checks, and a port fails the first:
+table. Three checks, and a port fails the first:
 
 - **The delta list.** Name three things the React UI does that the Streamlit model structurally
   could not, and point at the code: state surviving an interaction without a rerun; a region that
@@ -219,10 +219,21 @@ table. Two checks, and a port fails the first:
 - **The parity inventory.** Phase 0's capability list is the contract — layout is discarded,
   features are not. Say where each item now lives. A port passes this trivially; it catches the
   opposite failure, "redesign" as a euphemism for dropping what you didn't rebuild.
+- **One visual system — no element styled twice.** Streamlit drew every widget identically, so
+  uniformity was free; hand-rolled React loses it, and an agent building screen-by-screen ships
+  three blues, four radii, and two button heights while every screen looks fine alone. The
+  redesign *creates* this risk — a port would at least inherit consistency — so earn it back on
+  purpose: every color, space, radius, and font size resolves to a **CSS custom property defined
+  in one file**, and every interactive element comes from **one primitive** (`<Button
+  variant="primary|secondary|danger">`, `<Input>`, `<Card>`) that owns its hover/focus/disabled/
+  loading states. One library or none — never a library's dialog beside a hand-rolled one that
+  almost matches. Both halves are greppable over `src/` (the reference has the two commands): a
+  hex literal outside the token file, or a raw `<button>` outside the primitive, is the violation.
 
-Carry the old app's **brand** forward — theme colors, page title, favicon, logo (Phase 0 found
-them): that config is the one part of the old UI a human actually chose, and the Vite default
-palette titled "Vite + React" is a downgrade, not a redesign. Visual direction beyond that is the
+The old app's **brand** is what those tokens hold: theme colors, page title, favicon, logo (Phase
+0 found them). That config is the one part of the old UI a human actually chose — port it into the
+token file first, and the palette question is answered before you style anything. The Vite default
+titled "Vite + React" is a downgrade, not a redesign. Visual direction beyond that is the
 **`frontend-design` skill's** call — use it, and don't gold-plate past a layout that runs and
 works at 390px wide.
 
@@ -293,6 +304,9 @@ asserting it should work:
   rebuilding the full-page rerun in React by refetching everything on every change.
 - "Redesigning" by quietly dropping features, or by discarding the old app's brand along with its
   layout. Layout parity is optional; feature and brand parity are not.
+- Styling each screen as you build it — a hex literal here, a one-off `<button className>` there —
+  so the app ends up with three blues and four button heights. Tokens and primitives come first,
+  because retrofitting uniformity means touching every component you already wrote.
 - Renaming or restructuring lifted engine code to satisfy a linter — that's rewriting the engine,
   not lifting it. So is `ruff format` across it. So is trusting `--fix` on an engine with no tests.
 - Squashing the verbatim lift and the lint fixes into one commit, so the reviewer can no longer

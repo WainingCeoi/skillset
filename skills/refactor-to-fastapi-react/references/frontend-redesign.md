@@ -74,6 +74,76 @@ Merging three old widgets into one better control is a redesign; dropping the th
 regression. If a capability genuinely shouldn't survive, say so and let the user decide — don't
 let it vanish into a layout change.
 
+## One visual system
+
+Streamlit's execution model cost you a lot, but it bought one real thing: **every widget looked
+the same, for free.** You are now hand-drawing every pixel, so that uniformity is gone unless you
+rebuild it deliberately — and it is the first thing to go when components get styled one at a
+time. Each screen looks fine alone; the app looks like four people built it.
+
+Do this **before** the first component, not after. Retrofitting uniformity means editing every
+file you already wrote, so the cost of skipping it is paid at the worst possible moment.
+
+**1. Tokens — one file, one source of truth.** Every color, space, radius, font size, and shadow
+is a CSS custom property. The old app's brand (Phase 0: `[theme]` primaryColor/background/font)
+lands *here* and nowhere else, which is what makes "carry the brand forward" a concrete action
+instead of a wish.
+
+```css
+:root {
+  --color-bg: #ffffff;      --color-fg: #1a1a1a;
+  --color-primary: #ff4b4b;   /* <- the old app's theme.primaryColor, not a new invention */
+  --color-danger: #d93025;    --color-muted: #6b7280;
+  --space-1: 4px; --space-2: 8px; --space-3: 16px; --space-4: 24px;
+  --radius: 6px;            --font-sans: system-ui, sans-serif;
+}
+```
+
+Pick a scale and stay on it. Spacing that goes 4/8/16/24 is a system; spacing that goes
+7/13/22 because each looked right in isolation is the patchwork with extra steps.
+
+**2. Primitives — one component per interactive element.** Exactly one `Button`, one `Input`, one
+`Card`. Variants are props, not new components:
+
+```jsx
+<Button variant="primary">Ask</Button>
+<Button variant="secondary">Cancel</Button>
+<Button variant="danger" disabled>Delete</Button>
+```
+
+The primitive owns **every state**: hover, focus-visible, active, disabled, loading. That's the
+real payoff — states are where hand-rolled buttons diverge invisibly. Ten bespoke buttons means
+ten chances to forget a focus ring, and a missing focus ring is a keyboard user hitting a dead
+end (your delta list probably promised a keyboard path).
+
+**3. One library, or none.** Both are fine. A library's dialog next to a hand-rolled one that
+almost matches is not — "almost" is the whole problem, and it's worse than either choice made
+cleanly. If you adopt one, it is the *only* source of primitives.
+
+### The check
+
+Both halves are greppable, which is the point — "looks consistent" is an opinion, these are not.
+Run both over the whole of `src/`, excluding only the token file (the one place literals are
+*supposed* to live). Scoping the first one to `src/components/` is the obvious mistake: it leaves
+every literal in `src/features/` invisible, and a gate with a blind spot reads exactly like a
+clean run.
+
+```bash
+# 1. No literal colors, sizes, or radii outside the token file.
+grep -rnE '#[0-9a-fA-F]{3,6}|[0-9]+px' src/ \
+  --include='*.jsx' --include='*.js' --include='*.css' | grep -v 'styles/tokens.css'
+
+# 2. Every button is the primitive.
+grep -rn '<button' src/ | grep -v 'components/ui/Button'
+```
+
+Both must print nothing. A hit means a component is styling itself instead of consuming the
+system: fix the token or the primitive, never the component. If a component genuinely needs a
+value the tokens don't have, that's a missing token — not a licence for a literal.
+
+Sanity-check the gates the same way you check the lint gate (Phase 7): drop a `#ff0000` into a
+component and confirm check 1 fires. Silence you haven't falsified is not evidence.
+
 ## Common shapes
 
 Phase 0 named the primary action; that picks the layout. State your pick in one line, build it,

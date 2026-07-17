@@ -1,0 +1,20 @@
+# Root .gitignore (rename to .gitignore). Each sub-project also gets its own.
+
+# Python / backend
+__pycache__/
+*.py[cod]
+.venv/
+backend/.venv/
+backend/data/          # runtime data (databases, uploads) — never commit
+.env
+
+# Node / frontend
+node_modules/
+frontend/dist/
+frontend/node_modules/
+
+# OS / editor
+.DS_Store
+*.swp
+.idea/
+.vscode/

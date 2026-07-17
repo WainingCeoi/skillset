@@ -1,0 +1,50 @@
+# Merge these blocks into backend/pyproject.toml. They make the `src` layout importable and
+# turn warnings into errors in tests. Replace <engine>/<app>_api.
+
+[project]
+name = "<project>"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",   # ASGI server
+    "python-multipart>=0.0.9",   # file uploads (multipart/form-data), if you accept them
+    "sse-starlette>=2.1",        # Server-Sent Events (progress streams)
+    "python-dotenv>=1.0",
+    # ... your engine's own dependencies ...
+]
+
+[dependency-groups]
+dev = ["pytest>=8.0", "httpx>=0.27"]   # httpx backs the starlette/fastapi TestClient
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+# `src/` is the source root: it holds the <engine> package and the <app>_api web layer.
+# `sources = ["src"]` strips the `src/` prefix so both install at the wheel root and import
+# cleanly as `<engine>` and `<app>_api`. Add `src/config.py` here too if you keep a top-level
+# config module the engine imports as `from config import ...`.
+[tool.hatch.build.targets.wheel]
+sources = ["src"]
+only-include = ["src/<engine>", "src/<app>_api"]
+
+[tool.uv]
+package = true
+
+# `testpaths` makes the whole suite run with ONE command: `uv run pytest` (from backend/).
+# Warnings are errors in tests, so your own code can't introduce a deprecation unnoticed. Add
+# narrow, message-pinned `ignore:` lines ONLY for deprecations that live entirely in a
+# third-party package already on its latest release — never a blanket mute.
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+filterwarnings = ["error"]
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "N"]
+
+# NOTE: `uv run` re-resolves and can REWRITE uv.lock as a side effect of merely running. For
+# any command that shouldn't touch the lock (e.g. the LAN host), use `uv run --frozen`.

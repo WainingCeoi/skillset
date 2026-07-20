@@ -1,0 +1,24 @@
+{
+  "dpi": 200,
+  "labels": [
+    {
+      "id": 1,
+      "page": 0,
+      "bbox": [2884, 266, 276, 72],
+      "he": "מלון מטיילים",
+      "en": "Travelers' Hotel",
+      "zh": "旅行者酒店",
+      "style": "white",
+      "cell": true
+    },
+    {
+      "id": 2,
+      "page": 0,
+      "bbox": [681, 867, 108, 28],
+      "he": "אזור מיטה",
+      "en": "Bed Area",
+      "zh": "睡眠区",
+      "style": "chip"
+    }
+  ]
+}

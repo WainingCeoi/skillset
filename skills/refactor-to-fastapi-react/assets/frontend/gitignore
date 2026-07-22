@@ -13,6 +13,11 @@ node_modules/
 dist/
 dist-ssr/
 
+# TypeScript incremental build info. The template points `tsBuildInfoFile` inside node_modules/.tmp
+# (already ignored), so this line only matters if that setting is changed — which is exactly when
+# an untracked-file surprise would otherwise show up.
+*.tsbuildinfo
+
 # Local env overrides. Vite only exposes VITE_-prefixed vars to the browser — so a "secret" in
 # any .env here ships to every client that loads the page. Don't put one there, ignored or not.
 .env.local

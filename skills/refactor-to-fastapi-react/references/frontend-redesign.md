@@ -4,6 +4,12 @@ The React UI is a **redesign**. The old app tells you *what must exist*; it does
 *where anything goes*. Refer to it as much as you like — just don't reproduce it. This file is
 the translation layer. Visual direction is the `frontend-design` skill's job, not this one's.
 
+Everything below assumes the app is **TypeScript 7** (`react-ts` + `npm i -D typescript@7`, strict
+by default) with no JavaScript in it — Phase 4's rule. `.tsx` for components, `.ts` for modules, and
+the props/state shapes here are typed, not inferred from whatever the first caller happened to pass.
+Closed sets are union types, never `enum`: the scaffold enables `erasableSyntaxOnly`, under which
+`enum` doesn't compile at all.
+
 ## Why the old layout carries no information
 
 Streamlit/Gradio layouts are artifacts of an execution model: the script reruns top-to-bottom on
@@ -32,9 +38,9 @@ the old UI that isn't framework residue. Carry them into the React app; ask befo
 | full-page rerun on any change | the execution model itself | **nothing** — the problem is gone; don't simulate it with a global refetch |
 | `st.spinner` | one global "the page is busy" | independent loading state per region |
 | `st.cache_data` / `st.cache_resource` | recompute-on-rerun | gone client-side; the server-side singleton lives on `app.state` (Phase 2) |
-| `st.write_stream` | the one streaming primitive | append tokens to state from the `api.js` SSE reader |
+| `st.write_stream` | the one streaming primitive | append tokens to state from the `api.ts` SSE reader |
 | `st.rerun()` | force the page to redraw | a state update |
-| `st.file_uploader` | — | a controlled input posting `FormData` through `api.js` |
+| `st.file_uploader` | — | a controlled input posting `FormData` through `api.ts` |
 | `.streamlit/config.toml` `[theme]` | **nothing — this one is a real choice** | your CSS variables. Carry the colors and font over. |
 | `st.set_page_config(page_title=, page_icon=)` | **also a real choice** | `index.html` `<title>` + favicon. Not "Vite + React". |
 | Gradio `Blocks`/`Row`/`Column` | the same column model, same reasons | same as above |
@@ -105,7 +111,14 @@ Pick a scale and stay on it. Spacing that goes 4/8/16/24 is a system; spacing th
 **2. Primitives — one component per interactive element.** Exactly one `Button`, one `Input`, one
 `Card`. Variants are props, not new components:
 
-```jsx
+```tsx
+// components/ui/Button.tsx — the variant union is the enforcement: `variant="primry"` and
+// `variant="warning"` are both compile errors, so the set can't quietly grow to five.
+type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
+  variant?: 'primary' | 'secondary' | 'danger'
+  loading?: boolean
+}
+
 <Button variant="primary">Ask</Button>
 <Button variant="secondary">Cancel</Button>
 <Button variant="danger" disabled>Delete</Button>
@@ -131,7 +144,7 @@ clean run.
 ```bash
 # 1. No literal colors, sizes, or radii outside the token file.
 grep -rnE '#[0-9a-fA-F]{3,6}|[0-9]+px' src/ \
-  --include='*.jsx' --include='*.js' --include='*.css' | grep -v 'styles/tokens.css'
+  --include='*.tsx' --include='*.ts' --include='*.css' | grep -v 'styles/tokens.css'
 
 # 2. Every button is the primitive.
 grep -rn '<button' src/ | grep -v 'components/ui/Button'

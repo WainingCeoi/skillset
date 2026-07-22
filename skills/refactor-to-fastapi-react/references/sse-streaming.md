@@ -10,7 +10,7 @@ whole server if you get it wrong.
 The browser's native `EventSource` can only issue **GET** requests, but a chat/answer endpoint
 usually needs a **POST** (the prompt + params are in the body). So on the frontend you don't
 use `EventSource` — you read the `fetch` response stream manually and parse SSE frames yourself
-(`assets/frontend/api.js` has a ready `stream()` reader).
+(`assets/frontend/api.ts` has a ready typed `stream()` reader).
 
 On the **server**, the trap: most LLM/DB SDK calls are **blocking** (synchronous). If you write
 an `async def` generator and make a blocking call inside it, you block the event loop — and

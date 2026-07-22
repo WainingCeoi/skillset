@@ -8,7 +8,7 @@ A **monorepo** with a FastAPI backend and a React frontend:
 <project>/
 ├── Makefile        one entrance: install / dev / start / host / build / test / clean
 ├── backend/        FastAPI service + the engine (Python, src layout)
-└── frontend/       React + Vite single-page UI (JavaScript)
+└── frontend/       React + Vite single-page UI (TypeScript)
 ```
 
 ## Quick start
@@ -50,7 +50,10 @@ frontend (React+Vite) ──/api (JSON + SSE)──▶ backend (FastAPI) ──�
 - **`backend/src/<engine>/`** — the domain logic (framework-free, importable).
 - **`backend/src/<app>_api/`** — the web layer: `main.py` (app factory + lifespan builds one
   engine on `app.state`), `deps.py`, `schemas.py`, `routers/`.
-- **`frontend/src/`** — `api.js` (one HTTP + SSE wrapper) and the React components.
+- **`frontend/src/`** — `api.ts` (one typed HTTP + SSE wrapper, mirroring the backend's Pydantic
+  models) and the React `.tsx` components. **TypeScript 7 only** — no `.js`/`.jsx` anywhere in the
+  frontend, including tool configs; `make test` fails if one appears or if `typescript` resolves to
+  an older major.
 
 ## Configuration
 
@@ -62,11 +65,14 @@ Settings are read from environment variables / a `.env` file (copy `backend/.env
 ```bash
 uv run pytest           # run ALL backend tests (from backend/) — the single test command
 uv run ruff check src tests   # lint the backend: PEP 8 via ruff (E/W/F/N, 100 cols) — zero errors
-make test               # both of the above + a frontend build check
+npm run build           # from frontend/ — `tsc -b && vite build`, so this type-checks the UI too
+npx tsc --version       # from frontend/ — must be 7.x; `npm ls typescript` confirms what resolved
+make test               # all of the above + the no-JavaScript check
 make build              # frontend/dist only
 make clean              # remove build artifacts
 ```
 
 ## Requirements
 
-<OS notes>, Python ≥ 3.<x>, Node ≥ 18, and <any external service, e.g. a local Ollama server>.
+<OS notes>, Python ≥ 3.<x>, Node ≥ 20.19 (or ≥ 22.12 — Vite's engine floor), TypeScript 7 (pinned in
+`frontend/package.json`), and <any external service, e.g. a local Ollama server>.

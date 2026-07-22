@@ -9,7 +9,7 @@ and `references/` (deep-dive docs loaded on demand).
 
 | Skill | What it does |
 |---|---|
-| [`skills/refactor-to-fastapi-react/`](skills/refactor-to-fastapi-react/) | Refactor a Python app that tangles UI and logic (Streamlit, Gradio, Flask, a CLI/monolith) into a clean **FastAPI + React (Vite) monorepo**, with a one-command `make` entrance and an optional one-command **LAN host** (`make host` → `http://<machine>.local:<port>`). Ships battle-tested scaffold templates and a discover→change→verify workflow. |
+| [`skills/refactor-to-fastapi-react/`](skills/refactor-to-fastapi-react/) | Refactor a Python app that tangles UI and logic (Streamlit, Gradio, Flask, a CLI/monolith) into a clean **FastAPI + React/TypeScript (Vite) monorepo**, with a one-command `make` entrance and an optional one-command **LAN host** (`make host` → `http://<machine>.local:<port>`). Ships battle-tested scaffold templates and a discover→change→verify workflow. |
 | [`skills/translate-documents/`](skills/translate-documents/) | Translate any document file (PDF, image, Office, HTML, text) out of any language into **two layout-preserving outputs**: an English-only copy and a bilingual English+Chinese copy. Handles flattened/scanned PDFs with no text layer via an OCR→spec→overlay pipeline (Apple Vision / Windows.Media.Ocr / tesseract + PyMuPDF, auto-selected per OS), with debug-overlay and reviewer verification gates. |
 
 ## Layout

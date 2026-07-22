@@ -30,6 +30,19 @@ across parallel read-only subagents (one per dimension) and synthesize.
   `st.markdown(..., unsafe_allow_html=True)`. **The layout is discarded; the brand is not.** The
   theme config is the one artifact in the old UI where a human actually made a design decision —
   everything else is what the framework permitted. Carry it forward; ask before changing it.
+- **Existing JavaScript, counted.** Phase 4's frontend is TypeScript-only and `allowJs` stays off,
+  so every `.js`/`.jsx`/`.cjs`/`.mjs` the old app carries is either a port to `.ts`/`.tsx` or a
+  deletion — there is no third option, and deciding *now* is what stops it becoming a surprise
+  mid-refactor. A fresh scaffold ships zero JavaScript, so every hit here comes from the old app:
+
+  ```bash
+  find . -type d \( -name node_modules -o -name .git -o -name .claude -o -name .venv \) -prune -o \
+       \( -name '*.js' -o -name '*.jsx' -o -name '*.cjs' -o -name '*.mjs' \) -print
+  ```
+
+  The count is the size of that port and belongs in the Phase 0 map, where the user sees it before
+  you start. Split the hits three ways: application sources (port), tool configs (take the `.ts`
+  form, or fold into `vite.config.ts`), dead build output (delete).
 
 ## 3. In-memory state
 - What lives between interactions: a loaded model, a DB/client handle, a cache, `st.session_state`,
@@ -78,4 +91,5 @@ A short map: launch commands + ports; the engine/UI seam (what lifts, what gets 
 UI capability inventory + brand/theme assets (Phase 4's contract); the shared-state objects; the
 streaming operations; the real config vars + any secrets; the data/database situation + the
 user's chosen handling (none / disposable / migrate); the package manager + lockfile risk + the
-old max line length. That's enough to design the routers, the app-state model, and the UI.
+old max line length; and the inventory of existing `.js`/`.jsx`/`.cjs`/`.mjs` files Phase 4 must
+port or delete. That's enough to design the routers, the app-state model, and the UI.

@@ -32,11 +32,19 @@ prefer adapting them over writing from a blank page.
   `filterwarnings` + `--frozen` notes. Merge into the backend `pyproject.toml`.
 - **backend/.env.example** — config header including the hosting vars (`HOST`, `PORT`,
   static-dir override) and the "no-secret vs. set-your-secret" note.
-- **frontend/vite.config.js** — dev server that proxies `/api` to the backend (same-origin
+- **frontend/vite.config.ts** — dev server that proxies `/api` to the backend (same-origin
   dev, no CORS needed) and binds `127.0.0.1` (not IPv6-only `[::1]`, which some in-app browsers
   can't reach).
-- **frontend/api.js** — the single HTTP wrapper + the manual `fetch`-stream SSE reader for POST
-  streaming endpoints.
+- **frontend/api.ts** — the single HTTP wrapper + the manual `fetch`-stream SSE reader for POST
+  streaming endpoints. Typed: `request<T>` carries each endpoint's response shape (mirror the
+  Pydantic model), and `StreamEvent` is the union of the SSE events the backend frames — a union,
+  not an `enum`, because the scaffold compiles with `erasableSyntaxOnly` and `enum` is a hard error
+  there. Keep the `getStatus` wrapper (or replace it with a real one): with every endpoint
+  commented out, `noUnusedLocals` fails the build on `request` itself.
+- **Both frontend templates are `.ts`, and the frontend has no `.js` in it at all.** Scaffold with
+  `npm create vite@latest frontend -- --template react-ts`, then `npm install -D typescript@7` —
+  the template pins an older major, so the upgrade is a required step, and `npx tsc --version`
+  is how you know it took. Phase 4 has the rest (strict-by-default, `verbatimModuleSyntax`).
 - **README-template.md** — the ONE comprehensive project-root README to write (quick start, the
   `make` commands incl. `make host`, architecture, config, and the single `uv run pytest` test
   command). Prefer this single root README over per-sub-project READMEs.
@@ -47,7 +55,7 @@ prefer adapting them over writing from a blank page.
   files. Git reads the nearest `.gitignore`, so a `backend/.venv/` line at the root adds nothing
   and only rots — and since a bare `.venv/` already matches at any depth, it was the same rule
   written twice anyway.
-- **No component or layout template — on purpose.** `vite.config.js` and `api.js` are plumbing
-  (proxy + transport); there is deliberately no `App.jsx` to copy. The React UI is a *redesign*
+- **No component or layout template — on purpose.** `vite.config.ts` and `api.ts` are plumbing
+  (proxy + transport); there is deliberately no `App.tsx` to copy. The React UI is a *redesign*
   driven by the app's primary action (Phase 4), so a bundled layout would just be a second thing
   to transliterate. See `references/frontend-redesign.md`.

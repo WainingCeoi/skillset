@@ -2,8 +2,8 @@
 name: refactor-to-fastapi-react
 description: >-
   Refactor a Python app that mixes UI and logic — Streamlit, Gradio, Flask+templates, a
-  Tkinter/CLI tool, or any monolith — into a clean FastAPI backend + React (Vite) frontend
-  monorepo, with a one-command Makefile entrance and an optional one-command LAN host. Use
+  Tkinter/CLI tool, or any monolith — into a clean FastAPI backend + React/TypeScript (Vite)
+  frontend monorepo, with a one-command Makefile entrance and an optional one-command LAN host. Use
   this whenever the user wants to "add a real frontend/backend", "get off Streamlit", "split
   this into backend and frontend", "give this a proper web API and UI", "make a REST/JSON API
   for this", "serve this to my phone / other devices on the Wi-Fi", or "productionize" a
@@ -45,10 +45,11 @@ project/
 │   └── src/
 │       ├── <engine>/     # the domain logic, lifted in ~verbatim (its own package)
 │       └── <app>_api/    # the thin web layer: main.py, deps.py, schemas.py, routers/
-└── frontend/             # React + Vite single-page app
-    ├── package.json
-    ├── vite.config.js    # dev-proxies /api → backend, so calls are same-origin
-    └── src/              # api.js (fetch + SSE wrapper) + components
+└── frontend/             # React + Vite single-page app — TypeScript 7, no .js anywhere
+    ├── package.json      # devDependency "typescript": "^7.0.0"
+    ├── tsconfig.json     # + tsconfig.app.json / tsconfig.node.json, as the template lays them out
+    ├── vite.config.ts    # dev-proxies /api → backend, so calls are same-origin
+    └── src/              # api.ts (typed fetch + SSE wrapper) + .tsx components
 ```
 
 `assets/` in this skill holds drop-in versions of every non-obvious file — the **Bundled
@@ -200,10 +201,82 @@ writing streaming endpoints. The short version:
 
 ### Phase 4 — Frontend: React + Vite SPA
 
-Scaffold Vite (`assets/frontend/vite.config.js` proxies `/api` → backend so dev calls are
-same-origin and SSE needs no CORS). Centralize all HTTP in one `api.js`
-(`assets/frontend/api.js`) that wraps every endpoint and provides the SSE reader — components
-never call `fetch` directly. Default to plain JS unless the project already uses TypeScript.
+**The frontend is TypeScript — on TypeScript 7, with no JavaScript in it.** Scaffold, then pin the
+compiler, because the template does not:
+
+```bash
+npm create vite@latest frontend -- --template react-ts
+cd frontend && npm install -D typescript@7   # the react-ts template pins an older major
+npx tsc --version                            # must print "Version 7.x" — see below
+```
+
+TypeScript is the default here for a reason specific to *this* refactor, not a general language
+preference: you have just replaced an in-process Python call with an HTTP boundary, and the type
+checker is what puts a contract back across it. Every route from Phase 2 has a Pydantic
+request/response model — mirror each one as an interface (in `api.ts` or a `types.ts` beside it)
+and annotate the wrapper that returns it. Rename a field in `schemas.py` and forget the UI, and
+`npm run build` names the file and line; in plain JS the same drift renders a blank panel that
+nobody notices until the demo. `any` re-opens that hole, so it belongs only at the wire boundary
+(one assertion where JSON is parsed, as `api.ts` does) — never as a way to quiet the checker.
+
+Eight things about TS 7 and the current scaffold that are cheap to get wrong:
+
+- **The version is not automatic.** `--template react-ts` pins whatever major was current when the
+  template shipped — a fresh scaffold checked while writing this resolved `typescript@6.0.3` — so
+  installing `typescript@7` explicitly is a required step, not a nicety. It writes `^7.0.0` into
+  `devDependencies`, which is what stops the next `npm install` on another machine from going back.
+  TS 7 is the native compiler: `tsc -b` on a scaffold app finishes in tens of milliseconds, which
+  is why the type check can sit inside `make test` without anyone being tempted to pull it out.
+  The CLI is unchanged — the package still ships a `tsc` bin — but 7.0 ships **no programmatic
+  API**: `require("typescript")` returns `{ version, versionMajorMinor }` and nothing else. If you
+  reach for a codegen step that imports the compiler API (generating `types.ts` from the backend's
+  OpenAPI schema is the obvious temptation), pick one that shells out to `tsc`, or give that tool
+  its own `@typescript/typescript6` — never downgrade the project's compiler to suit a tool.
+- **Options TS 7 removed outright**, which matters if you carry a `tsconfig` over from the old
+  project or write one from memory: `baseUrl`, `target: es5`, `moduleResolution: node`,
+  `downlevelIteration`, `esModuleInterop: false` are each a config-load *error* (TS5102/TS5108),
+  and `importsNotUsedAsValues` / `suppressImplicitAnyIndexErrors` are now unknown options
+  (TS5023). The compiler refuses to start; it doesn't warn. Everything the `react-ts` template
+  sets is current and needs no migration — which is the argument for starting from the template
+  rather than a hand-written `tsconfig`.
+- **`baseUrl` is gone, so the `@/*` alias recipe everyone types from memory is two errors.**
+  `"baseUrl": "."` + `"paths": {"@/*": ["src/*"]}` gives TS5102 for the first and TS5090
+  ("non-relative paths are not allowed") for the second. Write `"paths": { "@/*": ["./src/*"] }`
+  in `tsconfig.app.json`, no `baseUrl`, and Vite resolves it from there — no `resolve.alias` too.
+- **Leave `"types": ["vite/client"]` in `tsconfig.app.json` alone.** The template no longer ships
+  `src/vite-env.d.ts`, so that one line is what types `import.meta.env.VITE_*` (Phase 0 inventoried
+  those), `import logo from './logo.svg'`, and `import './App.css'`. Delete it while tidying and a
+  green build turns into TS2307s on every asset import.
+- **`strict` is the compiler default in 7** (`tsc --help --all` prints `--strict … default: true`),
+  and the template's `tsconfig.app.json` correctly doesn't list it. So the failure mode isn't
+  forgetting to switch it on — it's someone adding `"strict": false`, or a stray `// @ts-ignore`,
+  to make one error go away. Neither belongs in a refactor whose whole point is a checked contract.
+- **`erasableSyntaxOnly` is on**, so `enum`, `namespace`, and constructor parameter properties are
+  hard errors (TS1294), not style opinions. Model a closed set as a union type — `api.ts`'s
+  `StreamEvent` is the pattern — or an `as const` object.
+- **`verbatimModuleSyntax` is on**: import types with `import type { Status } from './api'`. A
+  plain `import` of a type-only symbol fails the build.
+- **No JavaScript files.** Today's template is already clean (it lints with oxlint via
+  `.oxlintrc.json`), but older ones drop an `eslint.config.js`, and tooling you add later —
+  Tailwind, PostCSS — will offer a `.js` config. Take the `.ts` form every time. `make test`
+  enforces this (Phase 5); the check is one `find`, and it is the difference between *intending*
+  a TypeScript frontend and having one.
+
+If the project carries an existing JavaScript frontend, port it to `.ts`/`.tsx` as part of this
+phase rather than mixing languages under one `src/`. `allowJs` stays off — the compiler default —
+so a half-ported `src/` fails loudly rather than quietly: a `.ts` module importing a leftover `.js`
+one is TS7016, not a warning. What the compiler will *not* catch is a `.js` file nothing imports —
+a stray tool config, a dead module — because `tsc -b` never opens it. That blind spot is the whole
+reason for the `find` gate in `make test`. **There is no opt-out**: this skill's frontend is
+TypeScript on every path, and if the user wants plain JavaScript, say that this skill doesn't
+produce it. `"strict": false` isn't a consolation prize either — it's the one setting that lets
+unchecked code through a green build.
+
+Then drop in the plumbing: `assets/frontend/vite.config.ts` proxies `/api` → backend so dev calls
+are same-origin and SSE needs no CORS, and `assets/frontend/api.ts` is the one place HTTP
+lives — it wraps every endpoint, holds the response types, and provides the typed SSE reader.
+Components never call `fetch` directly.
+
 **The UI is a redesign, not a port.** Refer to the old screen freely — it's the source of
 requirements — but the old *layout* carries no design information: one top-to-bottom column,
 `st.sidebar`, `st.expander`, a full-page rerun on every change is what the Streamlit execution
@@ -280,6 +353,37 @@ asserting it should work:
   same-origin on loopback.
 - `make host`: `lsof -iTCP:<port> -sTCP:LISTEN` shows `*:<port>` (0.0.0.0), not 127.0.0.1;
   `curl` the LAN IP **and** `<name>.local` → 2xx; occupy the base port and confirm it advances.
+- `npm run build` (from `frontend/`): zero TypeScript errors. The `react-ts` template's build
+  script is `tsc -b && vite build`, so the type check *is* the build gate — if the project's
+  script was changed to bare `vite build`, Vite strips types without checking them and the gate
+  is gone; restore it, or add `"typecheck": "tsc -b"` and run that too. **Never bare
+  `tsc --noEmit`**: the template's root `tsconfig.json` is a solution file (`"files": []` plus
+  `references`), and plain `tsc` ignores `references` — so `tsc --noEmit` compiles an *empty
+  program* and exits 0 with a real error sitting in `src/`. Point it at a real project if you want
+  that form: `tsc --noEmit -p tsconfig.app.json`. Prove whichever you pick actually fires, the same
+  way you prove the ruff gate: drop `const n: number = 'x'` into a component, watch it fail, undo.
+- `npx tsc --version` and `npm ls typescript` (from `frontend/`): both must say **7.x**. Check
+  both — `npx` reports the binary that ran, `npm ls` reports what the tree actually resolved, and a
+  stale `package-lock.json` or a dependency's own pin can put an older `typescript` under
+  `node_modules` while the build still looks green. A build that passes on 6.x passes for the wrong
+  reason.
+- No JavaScript anywhere in the repo — frontend sources, tool configs, and any root-level or
+  `scripts/` helper — which is one command, the same one `make test` runs:
+
+  ```bash
+  find . -type d \( -name node_modules -o -name .git -o -name .claude -o -name .venv \
+                    -o -path './frontend/dist' -o -path './frontend/dist-ssr' \) -prune -o \
+       \( -name '*.js' -o -name '*.jsx' -o -name '*.cjs' -o -name '*.mjs' \) -print
+  ```
+
+  It must print nothing, and three details in it are load-bearing. The prunes exist because
+  `node_modules/`, `.venv/` and `frontend/dist/` are full of `.js` that isn't yours — the
+  production bundle *is* a `.js` file, that's what a build is — and a version without them fires
+  constantly and gets deleted. They're anchored by **path**, not name: a bare `-name dist` also
+  prunes a source directory that happens to be called `dist`, and a `.js` hiding there reads
+  exactly like a clean run. And it scans the whole repo, not just `frontend/` — a root
+  `eslint.config.js` or a `scripts/build.mjs` is plain JavaScript too. Falsify it once —
+  `touch frontend/src/x.js`, confirm `make test` fails, remove it.
 - `uv run ruff check src tests` (from `backend/`): zero errors. **`All checks passed!` is not
   evidence on its own** — ruff prints it and exits 0 even when it linted *zero files*, and the
   `warning: No Python files found` goes to stderr, where a stdout capture loses it. Prove the
@@ -300,6 +404,13 @@ asserting it should work:
 - Claiming success from a dry run. Blind-deleting config a user calls "old" without grepping
   to confirm it's unused. Blanket-muting a warning instead of fixing it — or, in code you've
   promised not to rewrite, declaring it narrowly and by name.
+- Any JavaScript in the repo — a `.js`/`.jsx` module under `frontend/src/`, a root-level or
+  `scripts/` build helper, or a tool that offers `.js` and `.ts` configs and gets the `.js` one.
+  Equally: leaving the scaffold on whatever TypeScript major the template pinned, and reporting
+  "TypeScript, done" without ever running `npx tsc --version`.
+- Keeping TypeScript in name only — `"strict": false` to clear one error, `any` on the API
+  wrappers, `@ts-ignore` over a real mismatch, untyped route responses. The checker exists to hold
+  the HTTP contract the refactor just created; switched off, it holds nothing and costs a build step.
 - Transliterating the old UI — a component per `st.*` call, stacked in the original order — or
   rebuilding the full-page rerun in React by refetching everything on every change.
 - "Redesigning" by quietly dropping features, or by discarding the old app's brand along with its
@@ -326,8 +437,8 @@ asserting it should work:
 | `assets/backend/host.py` | Phase 6 — the LAN launcher (mDNS name, free port, 0.0.0.0, banner) |
 | `assets/backend/pyproject-snippet.toml` | Phase 1/2 — src-layout hatch config + the ruff/PEP 8 gate + `--frozen` note |
 | `assets/backend/.env.example` | Phase 2/6 — config header incl. hosting vars |
-| `assets/frontend/vite.config.js` | Phase 4 — the `/api` dev proxy |
-| `assets/frontend/api.js` | Phase 4 — HTTP wrapper + the manual SSE stream reader |
+| `assets/frontend/vite.config.ts` | Phase 4 — the `/api` dev proxy |
+| `assets/frontend/api.ts` | Phase 4 — typed HTTP wrapper + the manual SSE stream reader |
 | `assets/README-template.md` | Phase 1 — the single comprehensive project-root README skeleton |
 | `assets/gitignore`, `assets/backend/gitignore`, `assets/frontend/gitignore` | Phase 1 — the three ignores: root = shared only, sub-projects own their caches |
 | `references/discovery-checklist.md` | Phase 0 — full discover checklist |

@@ -142,6 +142,13 @@ One JSON drives everything (`assets/spec-example.json` shows the shape):
 - `"cell": false` (white style only, default `true`) marks a free-standing label on open
   background — its patch may widen up to 1.3x so the text renders at a comfortable size.
   Leave the default for anything inside a table cell.
+- Stacked source lines (a two-line slogan, a caption pair, a bullet list) need three more
+  per-label flags: `"grow": false` — the default bilingual height growth would collide with
+  the neighboring line's text; instead size each bbox to the full band the line may occupy
+  (share the inter-line gaps). `"align": "left"` — for list rows whose bullet dots stay on
+  the page; centered text next to left-anchored dots reads wrong. `"max_fs"` set to the
+  same value on sibling labels — English inverts source width proportions, so per-label
+  fitting renders one line of a pair bigger than the other.
 - Keep the source string (`he` here — key it by language) in the spec: reviewers need it.
 
 ### 4. Verify boxes with a debug overlay — before generating anything

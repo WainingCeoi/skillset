@@ -18,6 +18,15 @@ Reads a spec JSON:
   neighbors. Set "cell": false for a free-standing label on open background:
   it may then widen (up to 1.3x) so EN and ZH render at a comfortable size
   instead of shrinking to fit a compact source string.
+- "grow" (default true): set false when the label is one line of an adjacent
+  stack (a two-line slogan, a bullet list) — bilingual height growth would
+  collide with the neighbor's text. Size the bbox to the full band the line
+  may occupy (share the inter-line gaps) instead.
+- "align": "left" draws lines flush-left instead of centered — for lists whose
+  bullet dots stay on the page. Free-label widening then extends right only.
+- "max_fs": cap on the computed font size. Set the same cap on sibling labels
+  (the two lines of one slogan, the rows of one list) so a pair whose English
+  widths differ still renders at one size.
 
 Every label renders its lines at ONE shared font size (EN over 中文 at two
 different sizes reads as a mistake), and a warning is printed for any line that
@@ -98,7 +107,7 @@ def layout_label(page, lab, mode, fonts, spec_dpi, bg_cache):
         lines.append(("zh", lab["zh"]))
 
     box = fitz.Rect(rect)
-    if len(lines) == 2:
+    if len(lines) == 2 and lab.get("grow", True):
         # bilingual needs more height: free labels may double, cell-bound cap at 1.5x
         grow = rect.height * (0.55 if free else 0.25)
         box.y0 -= grow
@@ -111,12 +120,17 @@ def layout_label(page, lab, mode, fonts, spec_dpi, bg_cache):
         need = max(fonts[k].text_length(t, fontsize=target) for k, t in lines) + 2 * MARGIN
         cap = box.width * (4.0 if chip else 1.3)  # chips float on artwork; white stays subtle
         if need > box.width:
-            grow_x = (min(need, cap) - box.width) / 2
-            box.x0 -= grow_x
-            box.x1 += grow_x
+            grow_x = min(need, cap) - box.width
+            if lab.get("align") == "left":
+                box.x1 += grow_x       # keep the left edge pinned to the bullet
+            else:
+                box.x0 -= grow_x / 2
+                box.x1 += grow_x / 2
 
     # one shared size per label: EN over 中文 at two sizes reads as a mistake
     fs = min(fit_fontsize(t, box.width, line_h, fonts[k]) for k, t in lines)
+    if "max_fs" in lab:
+        fs = min(fs, lab["max_fs"])   # pin sibling labels to one size
 
     ops = []
     for i, (kind, text) in enumerate(lines):
@@ -125,7 +139,11 @@ def layout_label(page, lab, mode, fonts, spec_dpi, bg_cache):
             print(f"warning: label {lab.get('id')} line {text!r} overflows its box even at "
                   f"minimum size - widen the bbox or shorten the translation", file=sys.stderr)
         top = box.y0 + i * line_h
-        origin = fitz.Point(box.x0 + (box.width - width) / 2, top + line_h / 2 + fs * 0.36)
+        if lab.get("align") == "left":
+            ox = box.x0 + MARGIN
+        else:
+            ox = box.x0 + (box.width - width) / 2
+        origin = fitz.Point(ox, top + line_h / 2 + fs * 0.36)
         ops.append((origin, text, fs, kind, (1, 1, 1) if chip else (0, 0, 0)))
 
     patch = box + (-MARGIN, -MARGIN, MARGIN, MARGIN)

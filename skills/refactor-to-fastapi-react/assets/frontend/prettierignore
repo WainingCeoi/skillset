@@ -1,0 +1,22 @@
+# frontend/.prettierignore (rename to .prettierignore) — gitignore syntax, paths relative to
+# frontend/. Keep it SHORT: prettier already skips node_modules by default, and by default it
+# reads BOTH .gitignore and .prettierignore — so `dist/`, `dist-ssr/` and `*.local` are already
+# covered by frontend/.gitignore and must NOT be repeated here.
+#
+# THE TRAP: passing `--ignore-path` (any value) REPLACES that default pair instead of adding to
+# it. `prettier --check . --ignore-path .prettierignore` stops reading .gitignore, walks into
+# frontend/dist, and reports the minified bundle you just built as badly formatted. Run plain
+# `prettier --check .` / `prettier --write .` and let the defaults do their job.
+#
+# This file is for the leftovers .gitignore has no opinion about: generated or vendored files
+# that ARE committed, and files whose exact bytes matter to something other than a human.
+
+# Generated from the backend's OpenAPI schema, if you add that step — prettier reformatting a
+# generated file makes every regeneration a diff.
+# src/api-types.generated.ts
+
+# Vendored third-party source committed into the repo, if any.
+# src/vendor/
+
+# Snapshot / fixture files whose exact bytes are the test.
+# src/**/__snapshots__/

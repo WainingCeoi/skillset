@@ -35,22 +35,27 @@ never booted is not done.
 
 ```
 project/
-├── Makefile              # one entrance: install / dev / start / host / build / test / clean
+├── Makefile              # one entrance: install/dev/start/host/build/lint/test/clean
 ├── README.md             # comprehensive: quick start, architecture, API table, config
 ├── .gitignore
 ├── backend/              # FastAPI service + the lifted engine (src layout)
-│   ├── pyproject.toml
+│   ├── pyproject.toml    # [tool.ruff] — the PEP 8 gate `make lint-backend` runs
 │   ├── .env.example
 │   ├── .gitignore
 │   └── src/
 │       ├── <engine>/     # the domain logic, lifted in ~verbatim (its own package)
 │       └── <app>_api/    # the thin web layer: main.py, deps.py, schemas.py, routers/
 └── frontend/             # React + Vite single-page app — TypeScript 7, no .js anywhere
-    ├── package.json      # devDependency "typescript": "^7.0.0"
+    ├── package.json      # devDependency "typescript": "^7.0.0" + an exact-pinned prettier
+    ├── .prettierrc.json  # JSON, never .js — the format gate `make lint-frontend` runs
     ├── tsconfig.json     # + tsconfig.app.json / tsconfig.node.json, as the template lays them out
     ├── vite.config.ts    # dev-proxies /api → backend, so calls are same-origin
     └── src/              # api.ts (typed fetch + SSE wrapper) + .tsx components
 ```
+
+**Two linters, one command.** The backend is checked by **ruff** (PEP 8) and the frontend by
+**prettier** (formatting); `make lint` runs both halves, `make lint-backend` / `make lint-frontend`
+run one, and `make test` ends with `make lint` so the two can never drift.
 
 `assets/` in this skill holds drop-in versions of every non-obvious file — the **Bundled
 resources** table below maps each one to the phase that needs it. **Copy them and adapt the
@@ -173,9 +178,20 @@ Key patterns (rationale in `references/backend-architecture.md`):
   through `create_app(engine=<fake>)` with an injected fake engine — fast, no models, no network.
 - **Lint gate — PEP 8 and `ruff check`-clean, zero errors.** Defined by the snippet's
   `[tool.ruff]` block (ruff a *declared* dev dep, `preview = true`); run from `backend/` as
-  `uv run ruff check src tests`, and part of `make test`. New code in `<app>_api/` has no excuse:
-  fix every finding. The lifted engine is the hard case — read `references/python-style.md`
-  before running `--fix` on it. The short version: **the engine's tests are the oracle, not your
+  `uv run ruff check src tests`, or from the root as `make lint-backend` — the same command, and
+  the backend half of `make lint`/`make test`. **Write the web layer PEP 8-clean as you type it,
+  and run the gate at every phase boundary rather than once at the end.** That's not a stylistic
+  preference: a hundred findings discovered at the end become a cleanup diff that touches every
+  file you wrote and hides the one change that mattered, while ten found inside the phase that
+  created them are a two-minute fix. `references/python-style.md` opens with the exact checklist —
+  4-space indent, ≤ 100 columns *including comments*, two blank lines between top-level defs,
+  snake_case handlers, `is None`, no bare `except:` — plus the three that bite specifically in
+  FastAPI code: keep Pydantic fields `snake_case` and put camelCase in an `alias` (N815), keep
+  route handlers `snake_case` even when the URL isn't (N802), and note that `Depends()` in an
+  argument default is only clean because `B` isn't selected. New code in `<app>_api/` has no
+  excuse: fix every finding, and `--fix` is an ordinary edit there because you wrote the lines.
+  The lifted engine is the hard case — read the rest of that file before running `--fix` on it.
+  The short version: **the engine's tests are the oracle, not your
   sense of which fixes "look mechanical"** — ruff's *safe* `--fix` silently deletes side-effect
   imports (that unused-looking `from models import User` registers a table) and rewrites
   expressions inside your algorithm. So: `--fix`, then run the engine's tests. Green, keep. Red,
@@ -202,12 +218,13 @@ writing streaming endpoints. The short version:
 ### Phase 4 — Frontend: React + Vite SPA
 
 **The frontend is TypeScript — on TypeScript 7, with no JavaScript in it.** Scaffold, then pin the
-compiler, because the template does not:
+compiler and add the formatter, because the template does neither:
 
 ```bash
 npm create vite@latest frontend -- --template react-ts
 cd frontend && npm install -D typescript@7   # the react-ts template pins an older major
 npx tsc --version                            # must print "Version 7.x" — see below
+npm install -D --save-exact prettier         # the frontend lint gate — exact, not ^
 ```
 
 TypeScript is the default here for a reason specific to *this* refactor, not a general language
@@ -272,10 +289,37 @@ TypeScript on every path, and if the user wants plain JavaScript, say that this 
 produce it. `"strict": false` isn't a consolation prize either — it's the one setting that lets
 unchecked code through a green build.
 
+**Formatting is prettier, and it's the frontend half of `make lint`.** Set it up now, before you
+write components — details and the reasoning in `references/frontend-lint.md`:
+
+```bash
+cp <skill>/assets/frontend/prettierrc.json .prettierrc.json   # JSON — see below
+npm pkg set scripts.lint="prettier --check ." scripts.format="prettier --write ."
+npm run format     # the vite scaffold is NOT prettier-formatted; commit this pass on its own
+npm run lint       # must now pass — this is what `make lint-frontend` runs
+```
+
+Four things that are cheap to get wrong here, and one honest limit:
+
+- **The config must be `.prettierrc.json`.** Prettier will read `prettier.config.js`/`.cjs`/`.mjs`
+  — each of which is a JavaScript file that `make test` fails on. The `.ts` config forms need a
+  loader installed. JSON needs nothing.
+- **`--save-exact`, not `^`.** Prettier's output can change in a patch release, so a caret range
+  turns `make lint` red on code nobody touched, in a commit that only ran `npm install`.
+- **You are overwriting a script.** The `react-ts` template ships `"lint": "oxlint"`, and
+  `npm pkg set scripts.lint` replaces it silently. Keep it deliberately (`scripts.lint:oxlint`) or
+  drop it deliberately — prettier is the required gate, oxlint is optional.
+- **Never pass `--ignore-path`.** Prettier reads *both* `.gitignore` and `.prettierignore` by
+  default; naming one drops the other, and it then walks into `frontend/dist` and reports the
+  minified bundle you just built as badly formatted.
+- **Prettier is a formatter, not a linter.** Green means formatted, not correct. `npm run build`
+  (`tsc -b`) remains the gate that holds the HTTP contract — don't let one stand in for the other.
+
 Then drop in the plumbing: `assets/frontend/vite.config.ts` proxies `/api` → backend so dev calls
 are same-origin and SSE needs no CORS, and `assets/frontend/api.ts` is the one place HTTP
 lives — it wraps every endpoint, holds the response types, and provides the typed SSE reader.
-Components never call `fetch` directly.
+Components never call `fetch` directly. Both templates are already prettier-clean under the
+bundled config, so dropping them in doesn't cost you a lint failure.
 
 **The UI is a redesign, not a port.** Refer to the old screen freely — it's the source of
 requirements — but the old *layout* carries no design information: one top-to-bottom column,
@@ -318,7 +362,16 @@ Copy `assets/Makefile`. It gives one entrance for everything:
   on loopback. **Never expose this dev server on the LAN.**
 - `make start` — build the frontend, then serve UI + API from **one** process (single-origin),
   loopback.
+- `make lint` — **both** linters in one command: ruff over `backend/src backend/tests`, prettier
+  over `frontend/`. It's two named halves (`lint-backend`, `lint-frontend`) with `lint` depending
+  on both, so you can run one while working in that language, and `make -k lint` reports both even
+  when the first fails. `make test` ends by calling `$(MAKE) lint` rather than repeating the
+  commands — one definition, no drift.
 - `make install` / `make build` / `make test` / `make clean`.
+
+`make test` runs correctness first and style last — tests, the TypeScript-7 assertion, the no-JS
+`find`, the frontend type-check/build, then `make lint`. A missing blank line should never be what
+gates the only question that matters: does the code still work?
 
 Makefile gotchas: recipe lines need **TAB** indentation, and a trailing `# comment` after
 `VAR = value` captures the whitespace into the value — put such comments on their own line.
@@ -384,10 +437,18 @@ asserting it should work:
   exactly like a clean run. And it scans the whole repo, not just `frontend/` — a root
   `eslint.config.js` or a `scripts/build.mjs` is plain JavaScript too. Falsify it once —
   `touch frontend/src/x.js`, confirm `make test` fails, remove it.
-- `uv run ruff check src tests` (from `backend/`): zero errors. **`All checks passed!` is not
-  evidence on its own** — ruff prints it and exits 0 even when it linted *zero files*, and the
-  `warning: No Python files found` goes to stderr, where a stdout capture loses it. Prove the
-  gate fires: add `import os` to a file, watch F401 fail it, undo.
+- `make lint` from the repo root: **both halves green, and both proven to fire.** A lint gate you
+  have never watched fail is a gate you are guessing about, and each half fails green differently:
+  - **Backend** — `uv run ruff check src tests`, zero errors. **`All checks passed!` is not
+    evidence on its own**: ruff prints it and exits 0 even when it linted *zero files*, and the
+    `warning: No Python files found` goes to stderr, where a stdout capture loses it. Prove it:
+    add `import os` to a file, watch F401 fail it, undo.
+  - **Frontend** — `npm run lint` (`prettier --check .`), zero findings. Prettier prints
+    `All matched files use Prettier code style!` *unconditionally* — it appears underneath an
+    error on the same run — so read the exit code, not the line. Prove it: append
+    `export const  x   =    1` to a component, watch `[warn]` + exit 1, `git checkout` the file.
+  - Then run `make -k lint` once to confirm the second half still runs when the first fails —
+    otherwise a broken `lint-backend` has been hiding the frontend result all along.
 - Run the whole test suite with the single command the README documents — **`uv run pytest`**
   (all backend tests live under `backend/tests/`, so one invocation collects them). Then
   `git status`: confirm the package manager didn't rewrite `pyproject`/lockfiles as a side effect
@@ -420,6 +481,15 @@ asserting it should work:
   because retrofitting uniformity means touching every component you already wrote.
 - Renaming or restructuring lifted engine code to satisfy a linter — that's rewriting the engine,
   not lifting it. So is `ruff format` across it. So is trusting `--fix` on an engine with no tests.
+- Treating lint as a cleanup phase: writing `<app>_api/` however it comes out and running the gate
+  once at the end, so the fix is a diff across every file you wrote. Same failure on the other
+  side: formatting the frontend only after the components exist, which rewrites all of them.
+- A `prettier.config.js`/`.cjs`/`.mjs` (a JavaScript file, in a TypeScript-only repo), a
+  `--ignore-path` flag that drops `.gitignore` and makes prettier lint `frontend/dist`, or
+  `npm pkg set scripts.lint` silently clobbering the template's `oxlint` script.
+- Reporting "lint passes" from a half-run: only one language checked, `make lint` never run from
+  the root, or a green message read instead of an exit code. Equally, treating a green prettier as
+  evidence of correctness — it is evidence of formatting, and `tsc -b` is the other half.
 - Squashing the verbatim lift and the lint fixes into one commit, so the reviewer can no longer
   tell which lines the refactor actually changed.
 - Ignoring version control: committing to the default branch instead of a working branch, adding
@@ -432,18 +502,21 @@ asserting it should work:
 | File | Read / use when |
 |---|---|
 | `assets/README.md` | Before using any template — maps the `<placeholders>` to your project |
-| `assets/Makefile` | Phase 5/6 — the universal entrance incl. the `host` target |
+| `assets/Makefile` | Phase 5/6 — the universal entrance incl. the `lint` and `host` targets |
 | `assets/backend/main.py` | Phase 2 — `create_app` + lifespan + DI + single-origin mount skeleton |
 | `assets/backend/host.py` | Phase 6 — the LAN launcher (mDNS name, free port, 0.0.0.0, banner) |
 | `assets/backend/pyproject-snippet.toml` | Phase 1/2 — src-layout hatch config + the ruff/PEP 8 gate + `--frozen` note |
 | `assets/backend/.env.example` | Phase 2/6 — config header incl. hosting vars |
 | `assets/frontend/vite.config.ts` | Phase 4 — the `/api` dev proxy |
 | `assets/frontend/api.ts` | Phase 4 — typed HTTP wrapper + the manual SSE stream reader |
+| `assets/frontend/prettierrc.json` | Phase 4 — the prettier config `make lint-frontend` reads (JSON, never `.js`) |
+| `assets/frontend/prettierignore` | Phase 4 — optional stub; `.gitignore` already covers `dist/` |
 | `assets/README-template.md` | Phase 1 — the single comprehensive project-root README skeleton |
 | `assets/gitignore`, `assets/backend/gitignore`, `assets/frontend/gitignore` | Phase 1 — the three ignores: root = shared only, sub-projects own their caches |
 | `references/discovery-checklist.md` | Phase 0 — full discover checklist |
 | `references/backend-architecture.md` | Phase 2 — why app-factory/lifespan/single-shared-object/single-worker |
-| `references/python-style.md` | Phase 2 — read before `--fix`ing the lifted engine: the gate, the tests-as-oracle rule, the ledger |
+| `references/python-style.md` | Phase 2 — the write-it-clean PEP 8 checklist, then the engine: the gate, the tests-as-oracle rule, the ledger |
+| `references/frontend-lint.md` | Phase 4 — prettier setup, the config, the ignore-path trap, proving the gate fires |
 | `references/frontend-redesign.md` | Phase 4 — read before writing components: old-idiom→React table, the delta list, the parity inventory |
 | `references/sse-streaming.md` | Phase 3 — the two SSE flows, with the threadpool trap explained |
 | `references/lan-host.md` | Phase 6 — mDNS, free-port scan, single worker, security guardrails |

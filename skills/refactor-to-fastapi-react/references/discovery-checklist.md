@@ -85,11 +85,18 @@ across parallel read-only subagents (one per dimension) and synthesize.
   `.editorconfig`. You only care about one number: the old **max line length**. Tighter than our
   100 is a non-event. **Looser** (120, or none) means the lifted engine will trip E501 — which is
   *not* autofixable at any safety level — so it goes on the ledger, not through a rewrap.
+- **Existing frontend formatter**, if the project already has a JS/TS frontend: a `.prettierrc*`,
+  a `prettier` key in `package.json`, an `.editorconfig`, or eslint formatting rules. Note its
+  `printWidth`/quote/semicolon settings — the new frontend standardizes on prettier at
+  `printWidth: 100` (`references/frontend-lint.md`), so a different existing setting means one
+  reformat pass on the ported files, in its own commit. Two formatters configured at once (eslint
+  formatting rules *and* prettier) is a fight to settle now, not after the components exist.
 
 ## Output of Phase 0
 A short map: launch commands + ports; the engine/UI seam (what lifts, what gets rewritten); the
 UI capability inventory + brand/theme assets (Phase 4's contract); the shared-state objects; the
 streaming operations; the real config vars + any secrets; the data/database situation + the
 user's chosen handling (none / disposable / migrate); the package manager + lockfile risk + the
-old max line length; and the inventory of existing `.js`/`.jsx`/`.cjs`/`.mjs` files Phase 4 must
-port or delete. That's enough to design the routers, the app-state model, and the UI.
+old max line length + any existing frontend formatter config; and the inventory of existing
+`.js`/`.jsx`/`.cjs`/`.mjs` files Phase 4 must port or delete. That's enough to design the routers,
+the app-state model, and the UI.

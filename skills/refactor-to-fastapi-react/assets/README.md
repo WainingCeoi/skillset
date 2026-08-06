@@ -18,8 +18,10 @@ prefer adapting them over writing from a blank page.
 ## What each file is for
 
 - **Makefile** — the universal entrance. `make dev` (both servers, loopback, hot-reload),
-  `make start` (single-origin, loopback), `make host` (single-origin, LAN), plus
-  install/build/test/clean. Recipe lines are TAB-indented; keep `#` comments on their own line.
+  `make start` (single-origin, loopback), `make host` (single-origin, LAN), `make lint` (ruff +
+  prettier, as `lint-backend` + `lint-frontend`), plus install/build/test/clean. `make test` calls
+  `$(MAKE) lint` instead of repeating either command, so there's one definition of "lint" in the
+  repo. Recipe lines are TAB-indented; keep `#` comments on their own line.
 - **backend/main.py** — the `create_app(engine=None)` factory: lifespan builds one
   `<EngineClass>` on `app.state`, DI reads it back, routers mount under `/api`, and the built
   frontend is mounted at `/` for single-origin mode. Injecting `engine` skips the heavy build
@@ -41,6 +43,24 @@ prefer adapting them over writing from a blank page.
   not an `enum`, because the scaffold compiles with `erasableSyntaxOnly` and `enum` is a hard error
   there. Keep the `getStatus` wrapper (or replace it with a real one): with every endpoint
   commented out, `noUnusedLocals` fails the build on `request` itself.
+- **frontend/prettierrc.json** — rename to `.prettierrc.json`. Three keys, each a deliberate
+  deviation from prettier's defaults: `printWidth: 100` matches `line-length = 100` in
+  `[tool.ruff]` (one number for the whole monorepo), and `semi: false` + `singleQuote: true` match
+  `api.ts`/`vite.config.ts`, which are prettier-clean under exactly this config — so dropping the
+  templates in costs no lint failure. Everything else stays default on purpose: the value of
+  prettier is that nobody argues about it. **JSON, not `prettier.config.js`** — that form is a
+  JavaScript file, which `make test` fails on; the `.ts` forms need a loader installed.
+- **frontend/prettierignore** — rename to `.prettierignore`; usually stays a stub. Prettier skips
+  `node_modules` by default and reads **both** `.gitignore` and `.prettierignore`, so `dist/` is
+  already out of scope — don't repeat it. Passing `--ignore-path` *replaces* that default pair
+  rather than extending it, at which point prettier lints the minified bundle in `dist/`. See
+  `references/frontend-lint.md`.
+- **The frontend's `package.json` scripts** — `npm pkg set scripts.lint="prettier --check ."
+  scripts.format="prettier --write ."`. `make lint-frontend` runs `npm run lint`, so the gate and
+  the command a developer types by hand are the same thing. Note the `react-ts` template already
+  defines `"lint": "oxlint"` and `npm pkg set` overwrites it silently — keep it as
+  `scripts.lint:oxlint` or drop it, but decide. Install prettier with `--save-exact`: its output
+  can change in a patch release, and a caret range turns the gate red on untouched code.
 - **Both frontend templates are `.ts`, and the frontend has no `.js` in it at all.** Scaffold with
   `npm create vite@latest frontend -- --template react-ts`, then `npm install -D typescript@7` —
   the template pins an older major, so the upgrade is a required step, and `npx tsc --version`

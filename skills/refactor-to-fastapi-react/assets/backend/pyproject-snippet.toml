@@ -48,10 +48,13 @@ package = true
 testpaths = ["tests"]
 filterwarnings = ["error"]
 
-# The PEP 8 gate. `make test` runs `ruff check src tests` from backend/; it must print
-# "All checks passed!" with zero errors. line-length 100 (not ruff's default 88) is deliberate
-# and load-bearing — these templates are written to it — and it stays at [tool.ruff] top level,
-# where BOTH the linter and the formatter read it, so the two can never disagree.
+# The PEP 8 gate. `make lint-backend` (and so `make lint`, and the end of `make test`) runs
+# `ruff check src tests` from backend/; it must exit 0 with zero errors. line-length 100 (not
+# ruff's default 88) is deliberate and load-bearing — these templates are written to it, and the
+# frontend's prettier `printWidth` matches it so the two halves of the monorepo wrap the same way.
+# It stays at [tool.ruff] top level, where BOTH the linter and the formatter read it, so those two
+# can never disagree either. Write the web layer to this as you type it: references/python-style.md
+# opens with the checklist, and a gate run per phase beats one cleanup diff across every file.
 [tool.ruff]
 line-length = 100
 target-version = "py312"   # match requires-python; ruff won't infer it for every rule
@@ -78,8 +81,10 @@ target-version = "py312"   # match requires-python; ruff won't infer it for ever
 # import whose side effect a later one depends on — real risk, cosmetic reward. UP rewrites
 # annotations engine-wide: pure churn against a lift you want reviewable. B finds real
 # PRE-EXISTING bugs (B006 mutable default) — report those to the user; a refactor is the wrong
-# commit to change engine behavior in. S flags the LAN host's 0.0.0.0 bind (S104), which is the
-# entire feature. Adopt any of them later, on their own branch, with their own tests.
+# commit to change engine behavior in, and B008 (call in an argument default) fires on every
+# FastAPI `Depends()` you write, so adopting B means declaring it. S flags the LAN host's 0.0.0.0
+# bind (S104), which is the entire feature. Adopt any of them later, on their own branch, with
+# their own tests.
 [tool.ruff.lint]
 preview = true
 select = ["E", "W", "F", "N"]

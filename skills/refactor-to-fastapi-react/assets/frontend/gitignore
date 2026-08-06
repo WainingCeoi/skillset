@@ -10,6 +10,8 @@
 node_modules/
 
 # Vite build output. `make build` regenerates it; `make start` / `make host` serve it.
+# These two lines do double duty: prettier reads .gitignore by default, so they're also what keeps
+# `prettier --check .` out of the minified bundle. Don't repeat them in .prettierignore.
 dist/
 dist-ssr/
 

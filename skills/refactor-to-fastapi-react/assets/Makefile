@@ -3,7 +3,7 @@
 # Replace <app>_api with your web-layer package and <PORT> with your base port.
 SHELL := /bin/bash
 
-.PHONY: help install dev backend frontend build start host test clean
+.PHONY: help install dev backend frontend build start host lint lint-backend lint-frontend test clean
 
 help:
 	@echo "make install   install backend (uv) + frontend (npm) dependencies"
@@ -11,7 +11,8 @@ help:
 	@echo "make start     build the frontend, then serve API + UI from ONE server (127.0.0.1:<PORT>)"
 	@echo "make host      build + serve API + UI to the whole LAN (http://<this-machine>.local:<PORT>)"
 	@echo "make build     build the frontend for production (frontend/dist)"
-	@echo "make test      backend tests + lint + TS7/no-JS checks + the frontend type-check/build"
+	@echo "make lint      lint BOTH halves: ruff (backend, PEP 8) + prettier (frontend format)"
+	@echo "make test      backend tests + TS7/no-JS checks + frontend type-check/build + make lint"
 	@echo "make clean     remove build artifacts and caches"
 
 # `npm install` obeys package.json, where TypeScript is pinned to ^7 (Phase 4) — don't re-run
@@ -52,22 +53,45 @@ backend:
 frontend:
 	cd frontend && npm run dev
 
-# Tests first: `&&` short-circuits, so ordering decides what you learn when it fails. Lint-first
-# would let a missing blank line gate the only question that matters — does the code still work?
+# ONE lint entrance for both languages: ruff for Python, prettier for the frontend. Split into
+# two named halves so you can run either alone while you're working in one of them; `make lint`
+# just depends on both. Make stops at the first failing prerequisite — deliberate, so you fix one
+# language at a time — while `make -k lint` runs both halves and still exits non-zero if either
+# failed, which is the form you want in CI when you'd rather see every finding at once.
+lint: lint-backend lint-frontend
+
 # Explicit `src tests` paths, not a bare `ruff check`: an explicit path overrides `exclude`, so a
 # stray ignore can't quietly shrink the gate to nothing, and a bad `cd` fails loudly with E902.
-# The frontend line is the TypeScript gate too: the react-ts template's build script is
+# Ruff still prints "All checks passed!" and exits 0 when it linted ZERO files, so prove the gate
+# fires (Phase 7) rather than trusting the message.
+lint-backend:
+	cd backend && uv run ruff check src tests
+
+# `npm run lint` is `prettier --check .` (defined once, in frontend/package.json) so a dev running
+# it by hand gets exactly what this gate runs. Prettier is a FORMATTER: green here means the
+# frontend is formatted, NOT that it is correct — `npm run build` (tsc -b) is that gate.
+# `prettier --write .` (= `npm run format`) is the fixer. Never add `--ignore-path` to either:
+# prettier reads BOTH .gitignore and .prettierignore by default, and naming one DROPS the other —
+# at which point it lints frontend/dist and flags the minified bundle you just built.
+lint-frontend:
+	cd frontend && npm run lint
+
+# Correctness first, cosmetics last: every line above `make lint` answers "does the code still
+# work?", and a missing blank line or an unformatted JSX prop should never be what hides the
+# answer. Each recipe line aborts the target on a non-zero exit, so the first real failure wins.
+# The frontend build line is the TypeScript gate too: the react-ts template's build script is
 # `tsc -b && vite build`, so a type error fails here. If someone trims it to a bare `vite build`,
 # types stop being checked (Vite only strips them) and this stops testing anything but bundling.
-# The two checks around it are the ones a green build would NOT catch: the build passes just as
+# The two checks before it are the ones a green build would NOT catch: the build passes just as
 # happily on an older typescript, and it never notices a .js file nobody imports yet — anywhere in
 # the repo, not just under frontend/. The prunes are anchored by PATH, not name: a bare
 # `-name dist` would also prune a source dir called dist and hide a real violation inside it.
 test:
-	cd backend && uv run pytest -q && uv run ruff check src tests
+	cd backend && uv run pytest -q
 	cd frontend && { npx tsc --version | grep -qE 'Version 7\.' || { echo "frontend: TypeScript 7 required, got $$(npx tsc --version)"; exit 1; }; }
 	@if find . -type d \( -name node_modules -o -name .git -o -name .claude -o -name .venv -o -path './frontend/dist' -o -path './frontend/dist-ssr' \) -prune -o \( -name '*.js' -o -name '*.jsx' -o -name '*.cjs' -o -name '*.mjs' \) -print | grep .; then echo "^ JavaScript in this repo — this project is TypeScript-only"; exit 1; fi
 	cd frontend && npm run build
+	@$(MAKE) lint
 
 clean:
 	rm -rf frontend/dist

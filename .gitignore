@@ -13,7 +13,7 @@ __pycache__/
 # Node (if any)
 node_modules/
 
-# Packaged skill bundles are generated from skills/<name>/ (via package_skill).
+# Packaged skill bundles are generated from skills/<name>/ (via scripts/package_skills.py).
 # The skills/ folders are the source of truth; `npx skills add` and git clone both use them.
 # Remove this line if you'd rather commit the .skill for direct download from the repo.
 *.skill

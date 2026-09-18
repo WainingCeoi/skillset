@@ -2,7 +2,9 @@
 
 The React UI is a **redesign**. The old app tells you *what must exist*; it does not tell you
 *where anything goes*. Refer to it as much as you like — just don't reproduce it. This file is
-the translation layer. Visual direction is the `frontend-design` skill's job, not this one's.
+the translation layer and contains the visual-system baseline needed for this refactor. If a
+`frontend-design` skill is available, it can refine the visual direction, but it is optional; the
+token, primitive, parity, and responsive checks below are self-contained.
 
 Everything below assumes the app is **TypeScript 7** (`react-ts` + `npm i -D typescript@7`, strict
 by default) with no JavaScript in it — Phase 4's rule. `.tsx` for components, `.ts` for modules, and

@@ -6,7 +6,7 @@ covers both:
 
 ```
 make lint          # = make lint-backend (ruff) + make lint-frontend (prettier)
-make lint-backend  # cd backend  && uv run ruff check src tests
+make lint-backend  # cd backend  && uv run --frozen ruff check src tests
 make lint-frontend # cd frontend && npm run lint      -> prettier --check .
 make -k lint       # both halves even if the first fails; still exits non-zero
 ```

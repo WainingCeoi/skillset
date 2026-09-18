@@ -73,10 +73,10 @@ make clean              # remove build artifacts
 Each half on its own, and the underlying commands:
 
 ```bash
-make lint-backend       # = cd backend && uv run ruff check src tests   (E/W/F/N, 100 cols)
+make lint-backend       # = cd backend && uv run --frozen ruff check src tests   (E/W/F/N, 100 cols)
 make lint-frontend      # = cd frontend && npm run lint                 (prettier --check .)
 make -k lint            # run both halves even if the first one fails
-uv run pytest           # from backend/ — ALL backend tests, the single test command
+uv run --frozen pytest  # from backend/ — ALL backend tests, the single test command
 npm run format          # from frontend/ — prettier --write . : the fixer for a failing lint
 npm run build           # from frontend/ — `tsc -b && vite build`, so this type-checks the UI too
 npx tsc --version       # from frontend/ — must be 7.x; `npm ls typescript` confirms what resolved

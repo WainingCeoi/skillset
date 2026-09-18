@@ -22,11 +22,12 @@ prefer adapting them over writing from a blank page.
   prettier, as `lint-backend` + `lint-frontend`), plus install/build/test/clean. `make test` calls
   `$(MAKE) lint` instead of repeating either command, so there's one definition of "lint" in the
   repo. Recipe lines are TAB-indented; keep `#` comments on their own line.
-- **backend/main.py** — the `create_app(engine=None)` factory: lifespan builds one
+- **backend/src/<app>_api/main.py** — the `create_app(engine=None)` factory: lifespan builds one
   `<EngineClass>` on `app.state`, DI reads it back, routers mount under `/api`, and the built
   frontend is mounted at `/` for single-origin mode. Injecting `engine` skips the heavy build
   (tests) and the static mount.
-- **backend/host.py** — the LAN launcher invoked by `make host`. Reads the machine's mDNS name,
+- **backend/src/<app>_api/host.py** — the LAN launcher invoked by `make host`. Copy the asset
+  there so `python -m <app>_api.host` can import it. It reads the machine's mDNS name,
   finds a free port by real bind test, prints URLs + a security banner, then serves on
   `0.0.0.0` with **one worker**. Set the `APP` constant to your `<app>_api.main:app`.
 - **backend/pyproject-snippet.toml** — the hatch `src` layout config, the ruff/PEP 8 gate
@@ -66,7 +67,7 @@ prefer adapting them over writing from a blank page.
   the template pins an older major, so the upgrade is a required step, and `npx tsc --version`
   is how you know it took. Phase 4 has the rest (strict-by-default, `verbatimModuleSyntax`).
 - **README-template.md** — the ONE comprehensive project-root README to write (quick start, the
-  `make` commands incl. `make host`, architecture, config, and the single `uv run pytest` test
+  `make` commands incl. `make host`, architecture, config, and the single `uv run --frozen pytest` test
   command). Prefer this single root README over per-sub-project READMEs.
 - **gitignore** (three of them: root, `backend/`, `frontend/`) — rename each to `.gitignore` in
   its own directory. **One rule: the root file holds only what belongs to no sub-project** (OS

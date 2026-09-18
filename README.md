@@ -18,6 +18,9 @@ and `references/` (deep-dive docs loaded on demand).
 skillset/
 ├── README.md
 ├── LICENSE
+├── scripts/
+│   └── package_skills.py        # deterministic .skill build + stale-bundle check
+├── tests/                    # regression tests for the shipped assets/tooling
 └── skills/
     ├── refactor-to-fastapi-react/
     │   ├── SKILL.md          # instructions + triggering description (required)
@@ -25,7 +28,7 @@ skillset/
     │   └── references/       # deep-dives loaded on demand (SSE, architecture, LAN host, discovery)
     └── translate-documents/
         ├── SKILL.md          # the two-file contract + the OCR→spec→overlay pipeline
-        ├── assets/           # ocr_vision.swift, overlay_translate.py, spec-example.json
+        ├── assets/           # Vision/Windows OCR, overlay_translate.py, spec-example.json
         └── references/       # ocr-pipeline.md, formats.md (text-layer PDF / Office / text paths)
 ```
 
@@ -63,6 +66,33 @@ or install its packaged `.skill` bundle from the Claude Code / claude.ai skills 
 Once installed, a skill triggers automatically when a request matches its `description`
 (e.g. "get this Streamlit app off Streamlit and give it a real backend + frontend", or
 "translate this PDF to English").
+
+### Packaging bundles
+
+The folders in `skills/` are the source of truth. Build deterministic `.skill` archives before
+attaching a release or using the skills UI, then verify that no archive is stale:
+
+```bash
+python3 scripts/package_skills.py build
+python3 scripts/package_skills.py --check
+```
+
+The generated root-level `.skill` files are intentionally ignored by Git. Run `--check` in CI or
+immediately before publishing to catch missing files, stale content, or unexpected bundle entries.
+The packager excludes standard generated cruft (`__pycache__`, `.DS_Store`, `.pyc`, `.pyo`) and
+rejects symlinks rather than following files outside a skill folder.
+
+### Regression tests
+
+Run the repository checks with PyMuPDF available:
+
+```bash
+uv run --with pymupdf python -m unittest discover -s tests -v
+```
+
+The raw TypeScript transport test also needs Node 22.6+ (for built-in type stripping), and the
+process-supervisor test needs `make`. These are test-harness requirements; generated Vite projects
+retain the Node version range documented in their own README.
 
 ## License
 

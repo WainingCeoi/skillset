@@ -31,8 +31,9 @@ build-backend = "hatchling.build"
 
 # `src/` is the source root: it holds the <engine> package and the <app>_api web layer.
 # `sources = ["src"]` strips the `src/` prefix so both install at the wheel root and import
-# cleanly as `<engine>` and `<app>_api`. Add `src/config.py` here too if you keep a top-level
-# config module the engine imports as `from config import ...`.
+# cleanly as `<engine>` and `<app>_api`. If you keep `src/config.py` for legacy
+# `from config import ...` imports, append `"src/config.py"` to `only-include` below; otherwise
+# leave it out, because this list must name only files that exist.
 [tool.hatch.build.targets.wheel]
 sources = ["src"]
 only-include = ["src/<engine>", "src/<app>_api"]
@@ -40,7 +41,7 @@ only-include = ["src/<engine>", "src/<app>_api"]
 [tool.uv]
 package = true
 
-# `testpaths` makes the whole suite run with ONE command: `uv run pytest` (from backend/).
+# `testpaths` makes the whole suite run with ONE command: `uv run --frozen pytest` (from backend/).
 # Warnings are errors in tests, so your own code can't introduce a deprecation unnoticed. Add
 # narrow, message-pinned `ignore:` lines ONLY for deprecations that live entirely in a
 # third-party package already on its latest release — never a blanket mute.
@@ -57,7 +58,7 @@ filterwarnings = ["error"]
 # opens with the checklist, and a gate run per phase beats one cleanup diff across every file.
 [tool.ruff]
 line-length = 100
-target-version = "py312"   # match requires-python; ruff won't infer it for every rule
+target-version = "py314"   # match requires-python; ruff won't infer it for every rule
 
 # `preview = true` is what makes this a PEP 8 gate at all — WITHOUT IT THIS BLOCK IS THEATRE.
 # In ruff, all of E1xx (indentation), E2xx (whitespace) and E3xx (blank lines) — the entire

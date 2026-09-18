@@ -78,6 +78,10 @@ original file in place — cover each string with a background-matched patch and
 translation exactly where the original sat. The original PDF's vectors, images and fonts are
 never re-created, so everything you don't touch stays pixel-identical.
 
+The bundled overlay CLI handles PDF plus PNG/JPEG raster input and writes PNG/JPEG raster output
+at the source pixel dimensions. Convert HEIC to PNG before this path; retain the PNG output rather
+than claiming an unsupported HEIC re-encode.
+
 **Setup:** the whole path needs PyMuPDF. The package is `pymupdf` — **not** `fitz`, which is
 an unrelated broken package on PyPI:
 

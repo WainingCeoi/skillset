@@ -50,8 +50,9 @@ not reach for `--workers >1` to "scale" these apps; scale by making the engine f
 ## Single-origin production mount
 
 In production you want one port, not two servers. Mount the built frontend
-(`frontend/dist`) at `/` with `StaticFiles(..., html=True)` **after** the `/api` routers and
-`/docs`, so it only catches unmatched paths and the SPA's client-side routes fall back to
-`index.html`. Gate the mount on the dist folder existing (so a dev run without a build doesn't
-crash) and on not being in test mode. Because the UI is then same-origin with the API, CORS is
-not exercised in production — it only matters for the dev proxy and any direct API access.
+(`frontend/dist`) at `/` with an SPA-aware `StaticFiles` subclass **after** the `/api` routers
+and `/docs`. Its 404 fallback serves `index.html` only for HTML navigation, never unknown `/api`
+paths or missing assets, so client-side routes work without masking real 404s. Gate the mount on
+the dist folder existing (so a dev run without a build doesn't crash) and on not being in test
+mode. Because the UI is then same-origin with the API, CORS is not exercised in production — it
+only matters for the dev proxy and any direct API access.

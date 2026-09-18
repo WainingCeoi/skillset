@@ -87,20 +87,27 @@ export const api = {
       const { value, done } = await reader.read()
       if (done) break
       buffer += decoder.decode(value, { stream: true })
-      // SSE frames are separated by a blank line; each frame has `event:` and `data:` lines.
+      // SSE permits CR, LF, or CRLF line endings; each frame ends with a blank line.
       let sep: number
-      while ((sep = buffer.indexOf('\n\n')) !== -1) {
+      let separator: RegExpMatchArray | null
+      while ((separator = buffer.match(/(?:\r\n|\r(?!\n)|\n){2}/)) !== null) {
+        sep = separator.index ?? -1
         const frame = buffer.slice(0, sep)
-        buffer = buffer.slice(sep + 2)
+        buffer = buffer.slice(sep + separator[0].length)
         let type = 'message'
-        let data = ''
-        for (const line of frame.split('\n')) {
+        const dataLines: string[] = []
+        for (const line of frame.split(/\r\n|\r(?!\n)|\n/)) {
           if (line.startsWith('event:')) type = line.slice(6).trim()
-          else if (line.startsWith('data:')) data += line.slice(5).trim()
+          else if (line.startsWith('data:')) dataLines.push(line.slice(5).replace(/^ /, ''))
         }
+        const data = dataLines.join('\n')
         // The wire is untyped; validate the discriminant once here, so callers stay checked.
         if (data && isStreamEventType(type)) {
           onEvent({ type, data: JSON.parse(data) } as StreamEvent)
+          if (type === 'done' || type === 'error') {
+            await reader.cancel()
+            return
+          }
         }
       }
     }

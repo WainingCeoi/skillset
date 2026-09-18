@@ -2,7 +2,9 @@
 
 Goal: one command that serves API + built UI to every device on the same network at a stable
 `http://<this-machine>.local:<port>`, with no hardcoded IPs/hostnames and no multi-step dance.
-`assets/backend/host.py` + the `host` target in `assets/Makefile` implement everything below.
+`assets/backend/host.py` (copied to `backend/src/<app>_api/host.py`) + the `host` target in
+`assets/Makefile` implement everything below. The supplied helper targets macOS, Linux, or WSL;
+native Windows needs a Windows-specific launcher and is not covered by these shell commands.
 
 ## What the launcher does
 

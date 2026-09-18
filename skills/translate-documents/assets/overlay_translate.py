@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Overlay translations onto a PDF, preserving the original layout.
+"""Overlay translations onto a PDF or raster image, preserving the original layout.
 
 Requires PyMuPDF — the pip/uv package is `pymupdf` (NOT `fitz`, which is an
 unrelated broken package).
@@ -49,9 +49,11 @@ The CJK font is auto-detected per OS (macOS / Windows / Linux candidates below);
 """
 import argparse
 import json
+import math
 import os
 import statistics
 import sys
+from pathlib import Path
 
 import fitz
 
@@ -182,10 +184,25 @@ def main():
                     help="CJK font file override; auto-detected per OS when omitted")
     args = ap.parse_args()
 
-    spec = json.load(open(args.spec))
-    doc = fitz.open(args.src)
+    with open(args.spec, encoding="utf-8") as spec_file:
+        spec = json.load(spec_file)
+    source = fitz.open(args.src)
+    raster_input = not source.is_pdf
+    if raster_input:
+        image = fitz.Pixmap(args.src)
+        raster_alpha = image.alpha
+        doc = fitz.open()
+        page = doc.new_page(
+            width=image.width * 72.0 / spec["dpi"],
+            height=image.height * 72.0 / spec["dpi"],
+        )
+        page.insert_image(page.rect, pixmap=image)
+        source.close()
+    else:
+        doc = source
     fonts, text_kwargs = load_fonts(args.mode, args.cjk_font)
     bg_cache = {}
+    raster_patches = []
 
     per_page = {}
     for lab in spec["labels"]:
@@ -200,13 +217,38 @@ def main():
             rect, fill, radius = patch_op
             shape.draw_rect(rect, radius=radius)
             shape.finish(color=None, fill=fill)
+            if raster_input:
+                raster_patches.append(rect)
             drawn.extend(text_ops)
         shape.commit()
         for origin, text, fs, kind, color in drawn:  # pass 2: all text
             page.insert_text(origin, text, fontsize=fs, color=color, **text_kwargs[kind])
 
-    doc.subset_fonts()  # a full CJK font embeds ~20 MB; subsetting keeps only used glyphs
-    doc.save(args.out, garbage=3, deflate=True)
+    if raster_input:
+        output_suffix = Path(args.out).suffix.lower()
+        if output_suffix not in {".png", ".jpg", ".jpeg"}:
+            raise ValueError("raster inputs require a .png, .jpg, or .jpeg output path")
+        preserve_alpha = raster_alpha and output_suffix == ".png"
+        rendered = doc[0].get_pixmap(dpi=spec["dpi"], alpha=preserve_alpha)
+        if preserve_alpha:
+            rendered = fitz.Pixmap(image.colorspace, rendered)
+            output = fitz.Pixmap(image)
+            scale = spec["dpi"] / 72.0
+            for patch in raster_patches:
+                pixel_patch = fitz.IRect(
+                    max(0, math.floor(patch.x0 * scale)),
+                    max(0, math.floor(patch.y0 * scale)),
+                    min(output.width, math.ceil(patch.x1 * scale)),
+                    min(output.height, math.ceil(patch.y1 * scale)),
+                )
+                if not pixel_patch.is_empty:
+                    output.copy(rendered, pixel_patch)
+        else:
+            output = rendered
+        output.save(args.out)
+    else:
+        doc.subset_fonts()  # a full CJK font embeds ~20 MB; subsetting keeps only used glyphs
+        doc.save(args.out, garbage=3, deflate=True)
     print(f"wrote {args.out}")
 
 

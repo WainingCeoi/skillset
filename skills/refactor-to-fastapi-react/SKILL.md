@@ -174,11 +174,11 @@ Key patterns (rationale in `references/backend-architecture.md`):
   single-origin production the UI is same-origin so CORS isn't exercised — but you need it in
   dev.
 - **Tests**: put backend tests under `backend/tests/` and configure `testpaths` so the whole
-  suite runs with **one command, `uv run pytest`** (no per-package invocations). Exercise the app
+  suite runs with **one command, `uv run --frozen pytest`** (no per-package invocations). Exercise the app
   through `create_app(engine=<fake>)` with an injected fake engine — fast, no models, no network.
 - **Lint gate — PEP 8 and `ruff check`-clean, zero errors.** Defined by the snippet's
   `[tool.ruff]` block (ruff a *declared* dev dep, `preview = true`); run from `backend/` as
-  `uv run ruff check src tests`, or from the root as `make lint-backend` — the same command, and
+  `uv run --frozen ruff check src tests`, or from the root as `make lint-backend` — the same command, and
   the backend half of `make lint`/`make test`. **Write the web layer PEP 8-clean as you type it,
   and run the gate at every phase boundary rather than once at the end.** That's not a stylistic
   preference: a hundred findings discovered at the end become a cleanup diff that touches every
@@ -350,9 +350,10 @@ table. Three checks, and a port fails the first:
 The old app's **brand** is what those tokens hold: theme colors, page title, favicon, logo (Phase
 0 found them). That config is the one part of the old UI a human actually chose — port it into the
 token file first, and the palette question is answered before you style anything. The Vite default
-titled "Vite + React" is a downgrade, not a redesign. Visual direction beyond that is the
-**`frontend-design` skill's** call — use it, and don't gold-plate past a layout that runs and
-works at 390px wide.
+titled "Vite + React" is a downgrade, not a redesign. Visual direction beyond that comes from
+this reference's visual-system checks. If the optional **`frontend-design` skill** is available,
+use it to refine the direction, but don't gold-plate past a layout that runs and works at 390px
+wide.
 
 ### Phase 5 — Universal entrance (Makefile)
 
@@ -378,7 +379,8 @@ Makefile gotchas: recipe lines need **TAB** indentation, and a trailing `# comme
 
 ### Phase 6 — LAN host (one command, bound to the network)
 
-Copy `assets/backend/host.py` and add the `host` target (already in `assets/Makefile`). It
+Copy `assets/backend/host.py` to `backend/src/<app>_api/host.py` and add the `host` target
+(already in `assets/Makefile`). It
 builds the UI, then serves API + UI from one process bound to `0.0.0.0` so every device on the
 Wi-Fi can reach it — reading the machine's **own mDNS name** at runtime (never hardcoded) and
 printing `http://<name>.local:<port>`, auto-advancing past a busy port, and running **one
@@ -395,6 +397,8 @@ worker**. Full rationale in `references/lan-host.md`. Two things that must carry
   a plain-HTTP LAN host. If the app has no auth at all, say so — unauthenticated access, not a
   cookie, is then the real risk. Don't add HTTPS/PWA unless asked (`references/lan-host.md`
   explains both). Keep a `HOST=127.0.0.1` override for local-only.
+- **Platform scope:** the supplied LAN helper targets macOS, Linux, and WSL. Native Windows needs
+  a Windows-specific launcher; do not promise the shell commands work there.
 
 ### Phase 7 — Verify by observation
 
@@ -439,7 +443,7 @@ asserting it should work:
   `touch frontend/src/x.js`, confirm `make test` fails, remove it.
 - `make lint` from the repo root: **both halves green, and both proven to fire.** A lint gate you
   have never watched fail is a gate you are guessing about, and each half fails green differently:
-  - **Backend** — `uv run ruff check src tests`, zero errors. **`All checks passed!` is not
+  - **Backend** — `uv run --frozen ruff check src tests`, zero errors. **`All checks passed!` is not
     evidence on its own**: ruff prints it and exits 0 even when it linted *zero files*, and the
     `warning: No Python files found` goes to stderr, where a stdout capture loses it. Prove it:
     add `import os` to a file, watch F401 fail it, undo.
@@ -449,7 +453,7 @@ asserting it should work:
     `export const  x   =    1` to a component, watch `[warn]` + exit 1, `git checkout` the file.
   - Then run `make -k lint` once to confirm the second half still runs when the first fails —
     otherwise a broken `lint-backend` has been hiding the frontend result all along.
-- Run the whole test suite with the single command the README documents — **`uv run pytest`**
+- Run the whole test suite with the single command the README documents — **`uv run --frozen pytest`**
   (all backend tests live under `backend/tests/`, so one invocation collects them). Then
   `git status`: confirm the package manager didn't rewrite `pyproject`/lockfiles as a side effect
   (use `uv run --frozen`); restore them if it did.
@@ -504,7 +508,7 @@ asserting it should work:
 | `assets/README.md` | Before using any template — maps the `<placeholders>` to your project |
 | `assets/Makefile` | Phase 5/6 — the universal entrance incl. the `lint` and `host` targets |
 | `assets/backend/main.py` | Phase 2 — `create_app` + lifespan + DI + single-origin mount skeleton |
-| `assets/backend/host.py` | Phase 6 — the LAN launcher (mDNS name, free port, 0.0.0.0, banner) |
+| `assets/backend/host.py` | Phase 6 — copy to `backend/src/<app>_api/host.py`: LAN launcher (mDNS name, free port, 0.0.0.0, banner) |
 | `assets/backend/pyproject-snippet.toml` | Phase 1/2 — src-layout hatch config + the ruff/PEP 8 gate + `--frozen` note |
 | `assets/backend/.env.example` | Phase 2/6 — config header incl. hosting vars |
 | `assets/frontend/vite.config.ts` | Phase 4 — the `/api` dev proxy |

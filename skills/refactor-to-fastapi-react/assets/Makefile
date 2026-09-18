@@ -24,18 +24,23 @@ install:
 	cd frontend && npm install
 
 # Development: both servers, one command, one Ctrl-C. Vite proxies /api -> :<PORT>.
+# Keep the child PIDs: process-group cleanup would also signal unrelated make children.
 dev:
 	@echo "backend  -> http://127.0.0.1:<PORT>"
 	@echo "frontend -> http://localhost:5173"
-	@trap 'kill 0' EXIT INT TERM; \
-	( cd backend && uv run uvicorn <app>_api.main:app --reload --port <PORT> ) & \
-	( cd frontend && npm run dev ) & \
-	wait
+	@backend_pid=; frontend_pid=; \
+	cleanup() { kill "$$backend_pid" "$$frontend_pid" 2>/dev/null || true; wait "$$backend_pid" "$$frontend_pid" 2>/dev/null || true; }; \
+	trap cleanup EXIT INT TERM; \
+	( cd backend && exec uv run --frozen uvicorn <app>_api.main:app --reload --port <PORT> ) & backend_pid=$$!; \
+	( cd frontend && exec npm run dev ) & frontend_pid=$$!; \
+	while kill -0 "$$backend_pid" 2>/dev/null && kill -0 "$$frontend_pid" 2>/dev/null; do sleep 0.2; done; \
+	if ! kill -0 "$$backend_pid" 2>/dev/null; then wait "$$backend_pid"; status=$$?; else wait "$$frontend_pid"; status=$$?; fi; \
+	exit "$$status"
 
 # Production-style: one process serves the built UI and the API on :<PORT> (loopback).
 start: build
 	@echo "serving API + UI -> http://127.0.0.1:<PORT>"
-	cd backend && uv run uvicorn <app>_api.main:app --port <PORT>
+	cd backend && uv run --frozen uvicorn <app>_api.main:app --port <PORT>
 
 # LAN host: build the UI, then serve API + UI from ONE process bound to 0.0.0.0 so every
 # device on the same Wi-Fi can reach it at http://<this-machine>.local:<port>. The launcher
@@ -48,7 +53,7 @@ build:
 	cd frontend && npm run build
 
 backend:
-	cd backend && uv run uvicorn <app>_api.main:app --reload --port <PORT>
+	cd backend && uv run --frozen uvicorn <app>_api.main:app --reload --port <PORT>
 
 frontend:
 	cd frontend && npm run dev
@@ -65,7 +70,7 @@ lint: lint-backend lint-frontend
 # Ruff still prints "All checks passed!" and exits 0 when it linted ZERO files, so prove the gate
 # fires (Phase 7) rather than trusting the message.
 lint-backend:
-	cd backend && uv run ruff check src tests
+	cd backend && uv run --frozen ruff check src tests
 
 # `npm run lint` is `prettier --check .` (defined once, in frontend/package.json) so a dev running
 # it by hand gets exactly what this gate runs. Prettier is a FORMATTER: green here means the
@@ -87,7 +92,7 @@ lint-frontend:
 # the repo, not just under frontend/. The prunes are anchored by PATH, not name: a bare
 # `-name dist` would also prune a source dir called dist and hide a real violation inside it.
 test:
-	cd backend && uv run pytest -q
+	cd backend && uv run --frozen pytest -q
 	cd frontend && { npx tsc --version | grep -qE 'Version 7\.' || { echo "frontend: TypeScript 7 required, got $$(npx tsc --version)"; exit 1; }; }
 	@if find . -type d \( -name node_modules -o -name .git -o -name .claude -o -name .venv -o -path './frontend/dist' -o -path './frontend/dist-ssr' \) -prune -o \( -name '*.js' -o -name '*.jsx' -o -name '*.cjs' -o -name '*.mjs' \) -print | grep .; then echo "^ JavaScript in this repo — this project is TypeScript-only"; exit 1; fi
 	cd frontend && npm run build

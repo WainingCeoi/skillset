@@ -12,7 +12,7 @@ engine intact.
 
 ## The gate
 
-From `backend/`: `uv run ruff check src tests` — or `make lint-backend` from the repo root, which
+From `backend/`: `uv run --frozen ruff check src tests` — or `make lint-backend` from the repo root, which
 runs exactly that. `make lint` adds the frontend half (prettier — `references/frontend-lint.md`),
 and `make test` ends with `make lint`, so there is one definition of "lint" and no way for the two
 to drift. Two properties are load-bearing and both are easy to lose — the snippet explains both:
@@ -41,7 +41,7 @@ make that real:
   end is a diff that touches every file you wrote and buries the one that mattered.
 - **`--fix` is fine on code you wrote.** The tests-are-the-oracle rule below exists for the
   *lifted engine*, where a "safe" fix can delete a side-effect import you've never read. In
-  `src/<app>_api/**` you know what every line is for, so `uv run ruff check src tests --fix` is an
+  `src/<app>_api/**` you know what every line is for, so `uv run --frozen ruff check src tests --fix` is an
   ordinary edit. It is still not a plan: `--fix` cannot rename a function (N802), cannot invent
   the import you forgot (F821), and cannot rewrap a 120-character comment (E501).
 

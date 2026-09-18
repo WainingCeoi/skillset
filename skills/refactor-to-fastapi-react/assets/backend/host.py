@@ -1,6 +1,7 @@
 """LAN host launcher — serve the built UI + API from ONE process on the local network.
 
-``make host`` (or ``uv run --frozen python -m <app>_api.host``) binds ``0.0.0.0`` so every
+Copy this template to ``backend/src/<app>_api/host.py``. ``make host`` (or ``uv run --frozen
+python -m <app>_api.host``) binds ``0.0.0.0`` so every
 device on the same Wi-Fi can reach the app at ``http://<this-machine>.local:<port>``. It reads
 this host's own mDNS/Bonjour name from the OS (never hardcoded), auto-advances past a busy
 port, and prints a loud security notice because 0.0.0.0 exposes the app to everyone on the
@@ -9,6 +10,9 @@ network.
 The plain ``make dev`` / ``make start`` commands stay on loopback — a hot-reload dev server is
 never exposed on the LAN. Set ``HOST=127.0.0.1`` to keep this launcher local-only; ``PORT``
 sets the base port.
+
+This LAN helper and its Makefile target support macOS, Linux, and WSL; native Windows needs a
+Windows-specific launcher.
 
 Single worker on purpose: if the app holds a big in-memory model, an in-process cache, or a
 single-active-job registry, multiple workers would double-load / break those invariants.

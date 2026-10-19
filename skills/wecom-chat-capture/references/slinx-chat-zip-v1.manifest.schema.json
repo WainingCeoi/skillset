@@ -177,6 +177,38 @@
             }
           ],
           "title": "Source Batch Id"
+        },
+        "role": {
+          "default": "original",
+          "enum": [
+            "original",
+            "screenshot_preview"
+          ],
+          "title": "Role",
+          "type": "string"
+        },
+        "derived_from": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Derived From"
+        },
+        "provenance": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Provenance"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         }
       },
       "required": [

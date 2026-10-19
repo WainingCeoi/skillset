@@ -6,6 +6,7 @@ No UI, network, OCR, transcription, or upload code. Python 3.10+ standard librar
 from __future__ import annotations
 
 import argparse
+import copy
 from collections import Counter
 from dataclasses import dataclass
 from datetime import datetime
@@ -16,9 +17,11 @@ from pathlib import Path
 import re
 import shutil
 import stat
+import struct
 import sys
 import tempfile
 import zipfile
+import zlib
 from zoneinfo import ZoneInfo
 
 
@@ -29,6 +32,8 @@ MAX_ZIP = 32 * 1024 * 1024
 MAX_LINE = 1024 * 1024
 MAX_ENTRIES = 2003
 SCHEMAS = Path(__file__).resolve().parents[1] / "references"
+MAX_PREVIEW_PIXELS = 16777216
+MAX_PREVIEW_DIMENSION = 16384
 
 
 class Invalid(ValueError):
@@ -154,6 +159,76 @@ def safe_media(path):
             and all(part not in ("", ".", "..") for part in path.split("/")),
             f"unsafe media path: {path!r}")
     return path
+
+
+def media_role(item):
+    return item.get("role", "original")
+
+
+def static_png_size(data):
+    """Bounded static PNG validation for the producer's RGB/RGBA 8-bit crops.
+
+    No Pillow/runtime dependency; decode the bounded zlib scanlines, verify CRCs,
+    framing and filters. Reject animation, extra data and unsupported producer modes.
+    """
+    require(data.startswith(b"\x89PNG\r\n\x1a\n"), "screenshot preview must be PNG bytes")
+    offset, chunks, compressed = 8, [], []
+    width = height = channels = None
+    idat_closed = False
+    while offset < len(data):
+        require(offset + 12 <= len(data), "truncated PNG chunk")
+        size = struct.unpack_from(">I", data, offset)[0]
+        kind = data[offset + 4:offset + 8]
+        require(offset + 12 + size <= len(data), "truncated PNG payload")
+        payload = data[offset + 8:offset + 8 + size]
+        crc = struct.unpack_from(">I", data, offset + 8 + size)[0]
+        require(zlib.crc32(kind + payload) & 0xffffffff == crc, "PNG CRC mismatch")
+        require(kind not in {b"acTL", b"fcTL", b"fdAT"}, "animated PNG is not a static screenshot preview")
+        require(not chunks or kind != b"IHDR", "duplicate PNG header")
+        if not chunks:
+            require(kind == b"IHDR" and size == 13, "PNG needs first IHDR")
+            width, height, depth, color, compression, filtering, interlace = struct.unpack(">IIBBBBB", payload)
+            require(0 < width <= MAX_PREVIEW_DIMENSION and 0 < height <= MAX_PREVIEW_DIMENSION,
+                    "screenshot preview dimensions exceed bounds")
+            require(width * height <= MAX_PREVIEW_PIXELS, "screenshot preview pixel budget exceeded")
+            require(depth == 8 and color in (2, 6) and compression == filtering == interlace == 0,
+                    "producer screenshot previews require non-interlaced 8-bit RGB/RGBA PNG")
+            channels = 3 if color == 2 else 4
+        elif kind == b"IDAT":
+            require(not idat_closed, "noncontiguous PNG IDAT")
+            compressed.append(payload)
+        elif kind == b"IEND":
+            require(size == 0 and compressed and offset + 12 == len(data), "PNG trailing data or missing image")
+            chunks.append(kind)
+            offset += 12
+            break
+        else:
+            if compressed:
+                idat_closed = True
+            require(kind != b"PLTE", "producer screenshot crops must not carry a palette")
+            require(len(kind) == 4 and kind[0] & 32, "unsupported critical PNG chunk")
+        chunks.append(kind)
+        offset += 12 + size
+    require(chunks and chunks[-1] == b"IEND" and offset == len(data), "PNG missing final IEND")
+    stride = width * channels + 1
+    expected = stride * height
+    decoder = zlib.decompressobj()
+    decoded = decoder.decompress(b"".join(compressed), expected + 1)
+    require(len(decoded) == expected and decoder.eof and not decoder.unused_data and not decoder.unconsumed_tail,
+            "PNG scanline size/stream mismatch")
+    require(all(value <= 4 for value in decoded[::stride]), "invalid PNG row filter")
+    return width, height
+
+
+def inventory_semantics(item):
+    role = media_role(item)
+    if role == "screenshot_preview":
+        require(item["completeness"] == "complete" and item["content_type"] == "image/png"
+                and item.get("derived_from") is not None and item.get("provenance") is not None,
+                "screenshot preview needs complete PNG, original path and provenance")
+        safe_media(item["derived_from"])
+    else:
+        require(item.get("derived_from") is None, "original media cannot be derived")
 
 
 def safe_entry(name):
@@ -283,11 +358,13 @@ def parse_entries(entries):
     inventory = {}
     folded = set()
     local_paths = set()
+    preview_pixels = 0
     for item in manifest["attachments"]:
         path = safe_media(item["path"])
         require(path.casefold() not in folded, "duplicate/casefold inventory path")
         folded.add(path.casefold())
         inventory[path] = item
+        inventory_semantics(item)
         if item["completeness"] == "missing":
             require(item["source_batch_id"] is None and path not in entries, "missing media must have no bytes or prior reference")
         else:
@@ -296,10 +373,19 @@ def parse_entries(entries):
                 require(path in entries, f"missing media bytes: {path}")
                 data = entries[path]
                 require(digest(data) == item["sha256"] and len(data) == item["size_bytes"], f"media hash/size mismatch: {path}")
+                if media_role(item) == "screenshot_preview":
+                    width, height = static_png_size(data)
+                    preview_pixels += width * height
+                    require(preview_pixels <= MAX_PREVIEW_PIXELS, "aggregate screenshot preview pixel budget exceeded")
                 local_paths.add(path)
             else:
                 require(path not in entries, "prior media must not carry local bytes")
     require(set(entries) == {"manifest.json", "messages.jsonl"} | local_paths, "unlisted media or extra package files")
+    for item in inventory.values():
+        if media_role(item) == "screenshot_preview":
+            original = inventory.get(item["derived_from"])
+            require(original is not None and media_role(original) == "original" and original["completeness"] == "missing",
+                    "screenshot preview must identify a missing original")
     referenced = set()
     for message in messages:
         refs = []
@@ -308,9 +394,19 @@ def parse_entries(entries):
             require(path in inventory, f"media reference not in inventory: {path}")
             item = inventory[path]
             require(all(ref[key] == item[key] for key in ("path", "sha256", "source_batch_id")), "media reference differs from inventory")
+            require(media_role(ref) == media_role(item), "media reference role differs from inventory")
             refs.append(path)
             referenced.add(path)
         require(len(refs) == len(set(refs)), "duplicate media reference in one message")
+        for path in refs:
+            if media_role(inventory[path]) == "screenshot_preview":
+                require(inventory[path]["derived_from"] in refs, "preview needs missing original in same message")
+        voice = message.get("voice")
+        if voice is not None:
+            require(message["type"] == "voice", "voice metadata requires type voice")
+            require(message["text"] is None, "voice-only message text must stay null; transcript is derived")
+            require(any(media_role(inventory[path]) == "original" and inventory[path]["content_type"].startswith("audio/")
+                        for path in refs), "voice metadata needs an original audio reference, complete or missing")
     require(referenced == inventory.keys(), "unreferenced attachment inventory")
     coverage = manifest["completeness"]["attachments"]
     missing = any(i["completeness"] == "missing" for i in inventory.values())
@@ -322,8 +418,19 @@ def parse_entries(entries):
 
 def original_fingerprint(message):
     # Candidate comparison only. Never identity, never automatic deduplication.
-    return encoded({key: message[key] for key in ("sender", "sent_at", "original_time", "type", "text")}
-                   | {"media": [r["sha256"] for r in message["media"]]})
+    value = {key: message[key] for key in ("sender", "sent_at", "original_time", "type", "text", "reply_to")}
+    value["media"] = [r["sha256"] for r in message["media"] if media_role(r) == "original"]
+    voice = message.get("voice")
+    if voice:
+        duration = {key: voice[key] for key in ("original_duration", "duration_ms") if voice.get(key) is not None}
+        if duration:
+            value["voice"] = duration
+    return digest(encoded(value)[:-1])
+
+
+def original_evidence_complete(message, inventory):
+    return all(inventory[ref["path"]]["completeness"] == "complete"
+               for ref in message["media"] if media_role(ref) == "original")
 
 
 def load_bundle(path, prior_paths=()):
@@ -361,6 +468,8 @@ def load_bundle(path, prior_paths=()):
                 prior = next((i for i in by_batch[source].manifest["attachments"] if i["path"] == item["path"]), None)
                 require(prior is not None and prior["completeness"] == "complete", "unresolved prior media path")
                 require(all(prior[k] == item[k] for k in ("sha256", "size_bytes", "content_type")), "prior media identity mismatch")
+                require(media_role(prior) == media_role(item) and prior.get("derived_from") == item.get("derived_from"),
+                        "prior media role/derivation mismatch")
         for message in package.messages:
             reply = message["reply_to"]
             if reply:
@@ -391,6 +500,7 @@ def preview(package, by_batch):
     base = by_batch.get(manifest["base_batch_id"])
     candidates = []
     candidate_count = 0
+    inventory = {item["path"]: item for item in manifest["attachments"]}
     if base:
         index = {}
         for message in base.messages:
@@ -400,15 +510,27 @@ def preview(package, by_batch):
             if matches:
                 candidate_count += 1
                 if len(candidates) < 500:
+                    base_inventory = {item["path"]: item for item in base.manifest["attachments"]}
+                    incomplete = not original_evidence_complete(current, inventory) or any(
+                        not original_evidence_complete(base.by_id[mid], base_inventory) for mid in matches[:20])
                     candidates.append({"message_id": current["id"], "base_message_ids": matches[:20],
                                        "base_match_count": len(matches), "truncated": len(matches) > 20,
-                                       "status": "ambiguous" if len(matches) > 1 else "candidate_only"})
+                                       "status": "ambiguous" if len(matches) > 1 else "incomplete_original" if incomplete else "candidate_only"})
     return {
         "version": VERSION, "conversation_id": manifest["conversation_id"], "title": manifest["title"],
         "batch_id": package.batch_id, "base_batch_id": manifest["base_batch_id"],
         "capture": manifest["capture"], "counts": manifest["counts"],
         "completeness": manifest["completeness"],
         "missing_media": [i for i in manifest["attachments"] if i["completeness"] == "missing"],
+        "derived_previews": [i for i in manifest["attachments"] if media_role(i) == "screenshot_preview"],
+        "voice_messages": [{"message_id": m["id"], "original_duration": (m.get("voice") or {}).get("original_duration"),
+                            "duration_ms": (m.get("voice") or {}).get("duration_ms"),
+                            "ui_transcripts": len((m.get("voice") or {}).get("transcripts", [])),
+                            "missing_original_audio": [r["path"] for r in m["media"] if media_role(r) == "original"
+                                                       and inventory[r["path"]]["completeness"] == "missing"]}
+                           for m in package.messages if m.get("voice") is not None],
+        "incomplete_original_anchors": [a for a in manifest["overlap_anchors"]
+                                        if not original_evidence_complete(package.by_id[a["message_id"]], inventory)],
         "dependencies": sorted({i["source_batch_id"] for i in manifest["attachments"] if i["source_batch_id"]}),
         "unknown_times": [m["id"] for m in package.messages if m["sent_at"] is None],
         "unknown_senders": [m["id"] for m in package.messages if m["sender"]["name"] is None],
@@ -542,12 +664,22 @@ def normalize(source, output, prior_paths):
             shutil.rmtree(temp)
 
 
-def stage_media(source, directory, original_name=None, content_type="application/octet-stream"):
+def stage_media(source, directory, original_name=None, content_type="application/octet-stream",
+                role="original", derived_from=None, provenance=None):
     """Copy an explicitly downloaded file unchanged, returning safe inventory metadata."""
     data = read_limited(source)
     directory = no_links(directory)
     directory.mkdir(parents=True, exist_ok=True)
     sha = digest(data)
+    metadata = {"path": "media/staged.bin", "original_name": original_name if original_name is not None else Path(source).name,
+                "sha256": sha, "size_bytes": len(data), "content_type": content_type,
+                "completeness": "complete", "source_batch_id": None,
+                "role": role, "derived_from": derived_from, "provenance": provenance}
+    manifest_schema = strict_json((SCHEMAS / f"{VERSION}.manifest.schema.json").read_bytes())
+    schema_check(metadata, manifest_schema["$defs"]["InventoryItem"], manifest_schema)
+    inventory_semantics(metadata)
+    if role == "screenshot_preview":
+        static_png_size(data)
     # Opaque names avoid display-filename traversal and preserve same-byte occurrences.
     index = 1
     while True:
@@ -560,9 +692,48 @@ def stage_media(source, directory, original_name=None, content_type="application
             index += 1
     with os.fdopen(descriptor, "wb") as stream:
         stream.write(data)
-    return {"path": f"media/{name}", "original_name": original_name if original_name is not None else Path(source).name,
-            "sha256": sha, "size_bytes": len(data), "content_type": content_type,
-            "completeness": "complete", "source_batch_id": None}
+    metadata["path"] = f"media/{name}"
+    return metadata
+
+
+def prepare_voice_record(spec, media_directory):
+    """Prepare one caller-observed UI voice occurrence; no audio/transcription APIs."""
+    require(type(spec) is dict and set(spec) == {"message", "audio"}, "voice spec needs only message and audio")
+    message, audio = copy.deepcopy(spec["message"]), spec["audio"]
+    require(type(audio) is dict and set(audio) == {"file", "original_name", "content_type", "missing_reason"},
+            "audio spec needs file, original_name, content_type and missing_reason")
+    require(message.get("type") == "voice" and message.get("text") is None and message.get("media") == [],
+            "voice record requires type voice, null original text, and empty incoming refs")
+    require(type(audio["content_type"]) is str and audio["content_type"].startswith("audio/"), "voice original needs audio MIME kind")
+    message.setdefault("voice", {"original_duration": None, "duration_ms": None, "transcripts": []})
+    message_schema = strict_json((SCHEMAS / f"{VERSION}.message.schema.json").read_bytes())
+    schema_check(message, message_schema)
+    require(message["voice"] is not None, "voice record requires explicit voice metadata (unknown values may be null)")
+    require((message["id_kind"] == "source") == bool(message["source_id"]), "voice source identity mismatch")
+    require(message["id_kind"] != "generated" or message["source_id"] is None, "generated source ID must be null")
+    timestamp(message["sent_at"])
+    item = None
+    staged = None
+    try:
+        if audio["file"] is None:
+            require(type(audio["missing_reason"]) is str and bool(audio["missing_reason"].strip()), "missing audio needs an explicit gap reason")
+            message["provenance"]["notes"] = ((message["provenance"].get("notes") or "") + " Original audio missing: " + audio["missing_reason"]).strip()
+            item = {"path": f"media/missing-voice-{digest(message['id'].encode())[:24]}.bin", "original_name": audio["original_name"],
+                    "sha256": None, "size_bytes": None, "content_type": audio["content_type"], "completeness": "missing",
+                    "source_batch_id": None, "role": "original", "derived_from": None, "provenance": message["provenance"]}
+        else:
+            require(type(audio["file"]) is str and audio["missing_reason"] is None, "complete voice audio needs local file and no missing reason")
+            item = stage_media(Path(audio["file"]), media_directory, audio["original_name"], audio["content_type"], provenance=message["provenance"])
+            staged = no_links(media_directory) / Path(item["path"]).name
+        message["media"] = [{key: item[key] for key in ("path", "sha256", "source_batch_id", "role")}]
+        schema_check(message, message_schema)
+        manifest_schema = strict_json((SCHEMAS / f"{VERSION}.manifest.schema.json").read_bytes())
+        schema_check(item, manifest_schema["$defs"]["InventoryItem"], manifest_schema)
+        return {"message": message, "attachment": item}
+    except Exception:
+        if staged is not None:
+            staged.unlink(missing_ok=True)
+        raise
 
 
 def main():
@@ -586,10 +757,34 @@ def main():
     sub.add_argument("--media-dir", type=Path, required=True)
     sub.add_argument("--original-name")
     sub.add_argument("--content-type", default="application/octet-stream")
+    sub.add_argument("--role", choices=("original", "screenshot_preview"), default="original")
+    sub.add_argument("--derived-from")
+    sub.add_argument("--provenance-file", type=Path)
+    sub = subs.add_parser("voice-record")
+    sub.add_argument("source", type=Path, help="UI observation JSON, not audio for transcription")
+    sub.add_argument("--media-dir", type=Path, required=True)
+    sub.add_argument("--output", type=Path, required=True, help="new private record JSON; transcript not printed")
     args = parser.parse_args()
     try:
         if args.command == "stage-media":
-            result = stage_media(args.source, args.media_dir, args.original_name, args.content_type)
+            provenance = strict_json(read_limited(args.provenance_file)) if args.provenance_file else None
+            result = stage_media(args.source, args.media_dir, args.original_name, args.content_type,
+                                 args.role, args.derived_from, provenance)
+        elif args.command == "voice-record":
+            output = no_links(args.output)
+            require(not output.exists(), "voice record output already exists")
+            spec = strict_json(read_limited(args.source))
+            audio_path = spec.get("audio", {}).get("file")
+            if isinstance(audio_path, str) and not Path(audio_path).is_absolute():
+                spec["audio"]["file"] = str(no_links(args.source).parent / audio_path)
+            record = prepare_voice_record(spec, args.media_dir)
+            output.parent.mkdir(parents=True, exist_ok=True)
+            fd = os.open(output, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+            with os.fdopen(fd, "wb") as stream:
+                stream.write(encoded(record))
+            result = {"output": str(output), "message_id": record["message"]["id"],
+                      "audio_completeness": record["attachment"]["completeness"],
+                      "ui_transcripts": len(record["message"]["voice"].get("transcripts", []))}
         elif args.command == "normalize":
             result = normalize(args.source, args.output, args.prior)
         else:
@@ -610,7 +805,7 @@ def main():
                 result = resume_check(package, batches, args.checkpoint)
         print(encoded(result).decode(), end="")
         return 0
-    except (Invalid, OSError, ValueError, KeyError, TypeError, RecursionError, zipfile.BadZipFile, RuntimeError) as exc:
+    except (Invalid, OSError, ValueError, KeyError, TypeError, RecursionError, zipfile.BadZipFile, RuntimeError, zlib.error) as exc:
         print(f"invalid: {exc}", file=sys.stderr)
         return 1
 

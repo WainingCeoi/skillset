@@ -32,6 +32,15 @@
             }
           ],
           "title": "Source Batch Id"
+        },
+        "role": {
+          "default": "original",
+          "enum": [
+            "original",
+            "screenshot_preview"
+          ],
+          "title": "Role",
+          "type": "string"
         }
       },
       "required": [
@@ -155,6 +164,74 @@
       ],
       "title": "Sender",
       "type": "object"
+    },
+    "Voice": {
+      "additionalProperties": false,
+      "properties": {
+        "original_duration": {
+          "anyOf": [
+            {
+              "maxLength": 240,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Original Duration"
+        },
+        "duration_ms": {
+          "anyOf": [
+            {
+              "maximum": 2147483647,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Duration Ms"
+        },
+        "transcripts": {
+          "items": {
+            "$ref": "#/$defs/VoiceTranscript"
+          },
+          "maxItems": 20,
+          "title": "Transcripts",
+          "type": "array"
+        }
+      },
+      "title": "Voice",
+      "type": "object"
+    },
+    "VoiceTranscript": {
+      "additionalProperties": false,
+      "properties": {
+        "text": {
+          "maxLength": 200000,
+          "minLength": 1,
+          "title": "Text",
+          "type": "string"
+        },
+        "source": {
+          "const": "wecom_ui",
+          "title": "Source",
+          "type": "string"
+        },
+        "provenance": {
+          "$ref": "#/$defs/Provenance"
+        }
+      },
+      "required": [
+        "text",
+        "source",
+        "provenance"
+      ],
+      "title": "VoiceTranscript",
+      "type": "object"
     }
   },
   "additionalProperties": false,
@@ -255,6 +332,17 @@
     },
     "provenance": {
       "$ref": "#/$defs/Provenance"
+    },
+    "voice": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Voice"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
     }
   },
   "required": [

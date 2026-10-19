@@ -47,12 +47,15 @@ checkpoint/resume, boundary, missing-media, and overlap procedure. Read
 5. Preserve every observed message occurrence, even identical consecutive messages. Label
    locally generated IDs. A match by sender/time/text alone is a review candidate, not
    permission to merge. For incremental batches, verify the base and prior media references.
+   Only put an overlap mapping in the package after an explicit reviewed occurrence decision;
+   do not manufacture a review sidecar or approval as part of AI matching.
 6. Run the local helper validation and preview, inspect the range, gaps and uncertain
    matches, then package locally. Deliver the path and limitations. Ask separately only
    if the user later requests an upload or another action outside capture authorization.
 
-Derived OCR/transcription belongs in separately labeled derived metadata with its method
-and source reference, never in the original message text or as a replacement for missing bytes.
+Derived OCR/transcription belongs in separately labeled local sidecars outside the original
+ZIP, with method and source reference; never put it in original message text or substitute
+it for missing bytes. The strict canonical format is `slinx-chat-zip-v1`.
 
 ## Local tooling and synthetic verification
 

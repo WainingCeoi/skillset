@@ -24,7 +24,9 @@ from zoneinfo import ZoneInfo
 
 VERSION = "slinx-chat-zip-v1"
 MAX_FILE = 32 * 1024 * 1024
-MAX_TOTAL = 128 * 1024 * 1024
+MAX_TOTAL = 64 * 1024 * 1024
+MAX_ZIP = 32 * 1024 * 1024
+MAX_LINE = 1024 * 1024
 MAX_ENTRIES = 2003
 SCHEMAS = Path(__file__).resolve().parents[1] / "references"
 
@@ -40,6 +42,14 @@ def require(condition, message):
 
 def digest(data):
     return hashlib.sha256(data).hexdigest()
+
+
+def file_digest(path):
+    value = hashlib.sha256()
+    with no_links(path).open("rb") as stream:
+        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+            value.update(chunk)
+    return value.hexdigest()
 
 
 def encoded(value):
@@ -69,6 +79,7 @@ def message_lines(data):
     if lines and lines[-1] == "":
         lines.pop()
     require(all(line.strip() for line in lines), "blank JSONL lines are not message records")
+    require(all(len(line.encode("utf-8")) <= MAX_LINE for line in lines), "JSONL line exceeds 1 MiB")
     return [strict_json(line) for line in lines]
 
 
@@ -198,6 +209,7 @@ def read_entries(path):
                     add(name, read_limited(child))
         visit(path)
     else:
+        require(path.stat().st_size <= MAX_ZIP, "ZIP exceeds 32 MiB upload limit")
         with zipfile.ZipFile(path) as archive:
             infos = archive.infolist()
             require(len(infos) <= MAX_ENTRIES, "too many ZIP entries")
@@ -205,11 +217,13 @@ def read_entries(path):
             # Inspect the entire central directory before decompressing any payload.
             for info in infos:
                 name = info.filename
+                require(info.orig_filename == name, "NUL/aliased ZIP path")
                 require(name.casefold() not in seen, f"duplicate/casefold ZIP path: {name}")
                 seen.add(name.casefold())
                 mode = info.external_attr >> 16
                 require(not stat.S_ISLNK(mode) and not info.flag_bits & 1, "symlink/encrypted ZIP entry")
-                require(stat.S_IFMT(mode) in (0, stat.S_IFREG, stat.S_IFDIR), "special ZIP entry")
+                require(stat.S_IFMT(mode) in (0, stat.S_IFDIR if info.is_dir() else stat.S_IFREG), "special/mismatched ZIP entry")
+                require(info.compress_type in (zipfile.ZIP_STORED, zipfile.ZIP_DEFLATED), "unsupported ZIP compression")
                 if info.is_dir():
                     require(name == "media/", f"unexpected ZIP directory: {name}")
                     require(info.file_size == 0, "nonempty directory entry")
@@ -352,6 +366,7 @@ def load_bundle(path, prior_paths=()):
             if reply:
                 require(reply["batch_id"] in ancestors | {bid}, "reply target batch not in chain")
                 require(reply["message_id"] in by_batch[reply["batch_id"]].by_id, "unresolved reply target")
+                require((reply["batch_id"], reply["message_id"]) != (bid, message["id"]), "self reply is not allowed")
         used_current, used_base = set(), set()
         for anchor in package.manifest["overlap_anchors"]:
             require(base is not None, "overlap needs base")
@@ -463,7 +478,7 @@ def create_zip(package, output):
     os.close(fd)
     temp = Path(temp_name)
     try:
-        with zipfile.ZipFile(temp, "w", compression=zipfile.ZIP_STORED) as archive:
+        with zipfile.ZipFile(temp, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=9) as archive:
             entries = dict(package.entries)
             entries["manifest.json"] = encoded(package.manifest)
             entries["messages.jsonl"] = b"".join(encoded(m) for m in package.messages)
@@ -471,8 +486,10 @@ def create_zip(package, output):
             for name, data in sorted(entries.items()):
                 info = zipfile.ZipInfo(name, date_time=(1980, 1, 1, 0, 0, 0))
                 info.create_system = 3
+                info.compress_type = zipfile.ZIP_DEFLATED
                 info.external_attr = (0o40700 if name.endswith("/") else 0o100600) << 16
                 archive.writestr(info, data)
+        require(temp.stat().st_size <= MAX_ZIP, "ZIP exceeds 32 MiB upload limit; split into smaller authorized batches")
         # Exclusive destination, atomic completion, no accidental overwrite race.
         os.link(temp, output)
     finally:
@@ -582,7 +599,7 @@ def main():
                 require_review(package, args.review)
                 create_zip(package, args.output)
                 result["output"] = str(args.output)
-                result["zip_sha256"] = digest(read_limited(args.output)) if args.output.stat().st_size <= MAX_FILE else None
+                result["zip_sha256"] = file_digest(args.output)
             elif args.command == "checkpoint":
                 source = no_links(args.source)
                 destination = no_links(args.checkpoint)

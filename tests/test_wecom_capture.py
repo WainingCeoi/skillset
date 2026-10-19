@@ -9,6 +9,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 import warnings
 import zipfile
 
@@ -100,6 +101,12 @@ class CaptureTests(unittest.TestCase):
             archive.writestr("media/A.bin", b"a")
             archive.writestr("media/a.bin", b"b")
         with self.assertRaisesRegex(cp.Invalid, "casefold"):
+            cp.read_entries(archive_path)
+        with zipfile.ZipFile(archive_path, "w") as archive:
+            archive.writestr("media/bad0.bin", b"payload")
+        # ZIP writers sanitize NULs, so mutate both stored filename occurrences.
+        archive_path.write_bytes(archive_path.read_bytes().replace(b"media/bad0.bin", b"media/bad\0.bin"))
+        with self.assertRaisesRegex(cp.Invalid, "NUL/aliased"):
             cp.read_entries(archive_path)
         self.assertFalse((self.root / "escape").exists())
 
@@ -264,6 +271,20 @@ class CaptureTests(unittest.TestCase):
             cp.resume_check(changed, batches, state)
         with self.assertRaises(FileExistsError):
             cp.checkpoint(package, batches, state, "cursor", "scope")
+
+    def test_resource_limits_and_self_replies_fail_without_partial_output(self):
+        output = self.root / "too-large.zip"
+        with patch.object(cp, "MAX_ZIP", 1), self.assertRaisesRegex(cp.Invalid, "upload limit"):
+            cp.create_zip(self.loaded(), output)
+        self.assertFalse(output.exists())
+        self.assertEqual(list(self.root.glob(".chat-package-*")), [])
+        with patch.object(cp, "MAX_LINE", 4), self.assertRaisesRegex(cp.Invalid, "line exceeds"):
+            cp.message_lines(b'{"text":"large"}\n')
+        package = self.loaded()
+        package.messages[0]["reply_to"] = {"batch_id": package.batch_id, "message_id": package.messages[0]["id"]}
+        self.rewrite(self.baseline, messages=package.messages)
+        with self.assertRaisesRegex(cp.Invalid, "self reply"):
+            self.loaded()
 
 
 if __name__ == "__main__":

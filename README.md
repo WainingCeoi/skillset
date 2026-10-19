@@ -27,6 +27,12 @@ skillset/
     │   ├── SKILL.md          # instructions + triggering description (required)
     │   ├── assets/           # drop-in scaffold templates (Makefile, host.py, app-factory, …)
     │   └── references/       # deep-dives loaded on demand (SSE, architecture, LAN host, discovery)
+    ├── wecom-chat-capture/
+    │   ├── SKILL.md          # scoped WeCom UI capture and authorization boundaries
+    │   ├── agents/          # skill discovery metadata
+    │   ├── scripts/         # offline validation, normalization, preview, pack and resume
+    │   ├── assets/          # synthetic mixed-media baseline + incremental examples
+    │   └── references/      # canonical Slinx v1 schemas, UI workflow and usage
     └── translate-documents/
         ├── SKILL.md          # the two-file contract + the OCR→spec→overlay pipeline
         ├── assets/           # Vision/Windows OCR, overlay_translate.py, spec-example.json
@@ -94,6 +100,17 @@ uv run --with pymupdf python -m unittest discover -s tests -v
 The raw TypeScript transport test also needs Node 22.6+ (for built-in type stripping), and the
 process-supervisor test needs `make`. These are test-harness requirements; generated Vite projects
 retain the Node version range documented in their own README.
+
+The WeCom helper needs only Python 3.10+ and the standard library. Its tests use invented
+messages and media without opening WeCom or uploading anything:
+
+```bash
+python3 -m unittest discover -s tests -p 'test_wecom_capture.py' -v
+```
+
+See [WeCom usage](skills/wecom-chat-capture/references/usage.md) for deterministic
+baseline/delta examples and [the contract](skills/wecom-chat-capture/references/contract.md)
+for explicit prior-batch media and overlap review semantics.
 
 ## License
 

@@ -31,6 +31,8 @@ Do not claim that visible UI history is a complete server archive.
 Read [references/capture-workflow.md](references/capture-workflow.md) for the UI,
 checkpoint/resume, boundary, missing-media, and overlap procedure. Read
 [references/contract.md](references/contract.md) before constructing records or packages.
+For voice messages, animated stickers or a user-authorized screenshot fallback, also read
+[references/voice-stickers.md](references/voice-stickers.md).
 
 1. Record scope and consent locally. Confirm the selected conversation from visible
    identifying details. A title alone may be ambiguous; don't invent a source conversation ID.

@@ -49,6 +49,10 @@ The command copies bytes unchanged and prints one inventory object; insert it in
 manifest and reference only path/hash/source_batch_id from the message. It never rewrites
 or deletes the source. Use the evidenced MIME type, or `application/octet-stream` when
 unknown. Display filenames never become filesystem paths.
+For a sticker actually saved through `Save As GIF`/`另存为 GIF`, verify that the bytes are
+GIF before using `--content-type image/gif`. Keep the original file unchanged; do not
+re-encode it or infer full-animation timing from tool screenshots. If an earlier package
+marked it missing, create a distinct corrected batch and an external supersedes note.
 
 `normalize SOURCE --output NEW_DIRECTORY [--prior PRIOR ...]` computes counts, fills hashes
 and byte sizes for declared complete local files, updates their message refs, assigns IDs

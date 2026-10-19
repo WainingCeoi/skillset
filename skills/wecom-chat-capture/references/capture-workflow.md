@@ -35,6 +35,14 @@ Keep any necessary full UI screenshots private outside the package and repositor
 - Image/file/audio/video: use the UI's original download/save action. Preserve bytes, original
   filename and media kind. Record expired, blocked, not downloaded, thumbnail-only and
   uncertain originals separately. Never label a thumbnail or screenshot as original media.
+- Animated stickers: explicitly inspect the sticker's right-click menu for `Save As GIF`,
+  `另存为 GIF`, or `另存为`; an absent AX menu is not proof the app has no export feature.
+  Check the screenshot/current window state too. If the supported UI tool still exposes no
+  menu, report that exact observation and request UI assistance instead of claiming the
+  animation is unavailable. Use only the observed save action and a private local path.
+  Verify the saved format from bytes, retain its original animation unchanged, and report
+  frames/durations only when decoded from the actual saved file. Tool screenshots are
+  isolated observations, not a complete frame sequence with source timing.
 - System/unsupported/deleted/recalled messages: retain what is visibly stated and record
   unknown payloads. Do not infer a recalled message's prior text or an unavailable file.
 - Derived OCR/transcription: opt-in local processing only; identify method, source attachment
@@ -67,6 +75,10 @@ Ambiguous candidates stay separate and are surfaced for review; never let the AI
 and discard the others. Declare prior-batch attachment references explicitly and supply the
 prior packages to the validator; missing/deleted dependencies require a self-contained
 repackage with original bytes or an explicit unavailable status, not a dangling reference.
+If a missing original is later recovered, keep the earlier validated ZIP immutable. Make a
+new batch identity for the corrected package and record supersedes/replacement locally;
+do not silently rewrite an existing batch. A replacement baseline is not an automatic
+incremental import into Slinx's active linear history.
 
 ## Review and stopping conditions
 

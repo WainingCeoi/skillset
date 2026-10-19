@@ -233,6 +233,30 @@ class CaptureTests(unittest.TestCase):
         self.assertEqual(first["original_name"], "../../显示名.txt")
         self.assertEqual((media.parent / first["path"]).read_bytes(), source.read_bytes())
 
+    def test_synthetic_animated_gif_preserves_original_bytes_through_staging_and_zip(self):
+        # Invented 1x1 two-frame GIF: black/white frames, 4/9 centisecond delays,
+        # infinite NETSCAPE loop. No real chat image or screenshot enters fixtures.
+        gif = (b"GIF89a\x01\x00\x01\x00\x80\x00\x00\x00\x00\x00\xff\xff\xff"
+               b"!\xff\x0bNETSCAPE2.0\x03\x01\x00\x00\x00"
+               b"!\xf9\x04\x00\x04\x00\x00\x00,\x00\x00\x00\x00\x01\x00\x01\x00\x00\x02\x02\x44\x01\x00"
+               b"!\xf9\x04\x00\x09\x00\x00\x00,\x00\x00\x00\x00\x01\x00\x01\x00\x00\x02\x02\x4c\x01\x00;")
+        download = self.root / "synthetic-save-as.gif"
+        download.write_bytes(gif)
+        package = self.loaded()
+        item = cp.stage_media(download, self.baseline / "media", "合成动图.gif", "image/gif")
+        package.manifest["attachments"].append(item)
+        package.manifest["counts"]["attachments"] += 1
+        package.messages[2]["media"].append({k: item[k] for k in ("path", "sha256", "source_batch_id")})
+        self.rewrite(self.baseline, package.manifest, package.messages)
+        loaded = self.loaded()
+        output = self.root / "with-animation.zip"
+        cp.create_zip(loaded, output)
+        restored = self.loaded(output)
+        self.assertEqual(restored.entries[item["path"]], gif)
+        self.assertEqual(download.read_bytes(), gif)
+        self.assertEqual(restored.manifest["attachments"][-1]["content_type"], "image/gif")
+        self.assertEqual(restored.manifest["attachments"][-1]["original_name"], "合成动图.gif")
+
     def test_failed_pack_and_normalize_preserve_existing_outputs(self):
         existing = self.root / "keep.zip"
         existing.write_bytes(b"unchanged")

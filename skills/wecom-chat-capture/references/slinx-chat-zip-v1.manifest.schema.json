@@ -1,0 +1,354 @@
+{
+  "$defs": {
+    "Capture": {
+      "additionalProperties": false,
+      "properties": {
+        "started_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Started At"
+        },
+        "ended_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Ended At"
+        },
+        "captured_at": {
+          "title": "Captured At",
+          "type": "string"
+        },
+        "timezone": {
+          "maxLength": 80,
+          "title": "Timezone",
+          "type": "string"
+        }
+      },
+      "required": [
+        "started_at",
+        "ended_at",
+        "captured_at",
+        "timezone"
+      ],
+      "title": "Capture",
+      "type": "object"
+    },
+    "Completeness": {
+      "additionalProperties": false,
+      "properties": {
+        "history": {
+          "enum": [
+            "complete",
+            "partial",
+            "unknown"
+          ],
+          "title": "History",
+          "type": "string"
+        },
+        "attachments": {
+          "enum": [
+            "complete",
+            "partial",
+            "none"
+          ],
+          "title": "Attachments",
+          "type": "string"
+        },
+        "notes": {
+          "items": {
+            "maxLength": 2000,
+            "type": "string"
+          },
+          "maxItems": 100,
+          "title": "Notes",
+          "type": "array"
+        }
+      },
+      "required": [
+        "history",
+        "attachments",
+        "notes"
+      ],
+      "title": "Completeness",
+      "type": "object"
+    },
+    "Counts": {
+      "additionalProperties": false,
+      "properties": {
+        "messages": {
+          "maximum": 50000,
+          "minimum": 1,
+          "title": "Messages",
+          "type": "integer"
+        },
+        "attachments": {
+          "maximum": 2000,
+          "minimum": 0,
+          "title": "Attachments",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "messages",
+        "attachments"
+      ],
+      "title": "Counts",
+      "type": "object"
+    },
+    "InventoryItem": {
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "title": "Path",
+          "type": "string"
+        },
+        "original_name": {
+          "anyOf": [
+            {
+              "maxLength": 1000,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Original Name"
+        },
+        "sha256": {
+          "anyOf": [
+            {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Sha256"
+        },
+        "size_bytes": {
+          "anyOf": [
+            {
+              "maximum": 33554432,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Size Bytes"
+        },
+        "content_type": {
+          "maxLength": 120,
+          "minLength": 1,
+          "title": "Content Type",
+          "type": "string"
+        },
+        "completeness": {
+          "enum": [
+            "complete",
+            "missing"
+          ],
+          "title": "Completeness",
+          "type": "string"
+        },
+        "source_batch_id": {
+          "anyOf": [
+            {
+              "maxLength": 160,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Source Batch Id"
+        }
+      },
+      "required": [
+        "path",
+        "original_name",
+        "sha256",
+        "size_bytes",
+        "content_type",
+        "completeness",
+        "source_batch_id"
+      ],
+      "title": "InventoryItem",
+      "type": "object"
+    },
+    "OverlapAnchor": {
+      "additionalProperties": false,
+      "properties": {
+        "message_id": {
+          "maxLength": 160,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$",
+          "title": "Message Id",
+          "type": "string"
+        },
+        "base_message_id": {
+          "maxLength": 160,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$",
+          "title": "Base Message Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "message_id",
+        "base_message_id"
+      ],
+      "title": "OverlapAnchor",
+      "type": "object"
+    },
+    "Provenance": {
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "maxLength": 80,
+          "minLength": 1,
+          "title": "Source",
+          "type": "string"
+        },
+        "capture_method": {
+          "maxLength": 160,
+          "minLength": 1,
+          "title": "Capture Method",
+          "type": "string"
+        },
+        "locator": {
+          "anyOf": [
+            {
+              "maxLength": 1000,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Locator"
+        },
+        "notes": {
+          "anyOf": [
+            {
+              "maxLength": 4000,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Notes"
+        }
+      },
+      "required": [
+        "source",
+        "capture_method"
+      ],
+      "title": "Provenance",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "version": {
+      "const": "slinx-chat-zip-v1",
+      "title": "Version",
+      "type": "string"
+    },
+    "conversation_id": {
+      "maxLength": 160,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$",
+      "title": "Conversation Id",
+      "type": "string"
+    },
+    "title": {
+      "maxLength": 240,
+      "minLength": 1,
+      "title": "Title",
+      "type": "string"
+    },
+    "batch_id": {
+      "maxLength": 160,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$",
+      "title": "Batch Id",
+      "type": "string"
+    },
+    "base_batch_id": {
+      "anyOf": [
+        {
+          "maxLength": 160,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Base Batch Id"
+    },
+    "capture": {
+      "$ref": "#/$defs/Capture"
+    },
+    "counts": {
+      "$ref": "#/$defs/Counts"
+    },
+    "attachments": {
+      "items": {
+        "$ref": "#/$defs/InventoryItem"
+      },
+      "maxItems": 2000,
+      "title": "Attachments",
+      "type": "array"
+    },
+    "completeness": {
+      "$ref": "#/$defs/Completeness"
+    },
+    "provenance": {
+      "$ref": "#/$defs/Provenance"
+    },
+    "overlap_anchors": {
+      "items": {
+        "$ref": "#/$defs/OverlapAnchor"
+      },
+      "maxItems": 50000,
+      "title": "Overlap Anchors",
+      "type": "array"
+    }
+  },
+  "required": [
+    "version",
+    "conversation_id",
+    "title",
+    "batch_id",
+    "base_batch_id",
+    "capture",
+    "counts",
+    "attachments",
+    "completeness",
+    "provenance",
+    "overlap_anchors"
+  ],
+  "title": "Manifest",
+  "type": "object"
+}

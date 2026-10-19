@@ -1,0 +1,1 @@
+{"batch_id":"synthetic-delta-001","decisions":[{"base_message_id":"base-g1","decision":"same","evidence":"Synthetic ordered viewport anchor explicitly identifies this occurrence.","message_id":"delta-g0"},{"base_message_id":"base-g2","decision":"same","evidence":"Synthetic ordered viewport anchor explicitly identifies this occurrence.","message_id":"delta-g1"}]}

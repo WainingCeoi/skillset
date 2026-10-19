@@ -3,8 +3,12 @@
 Canonical version: `slinx-chat-zip-v1`. The Slinx importer owns this format. The pinned
 [manifest schema](slinx-chat-zip-v1.manifest.schema.json) and
 [message schema](slinx-chat-zip-v1.message.schema.json) were copied from its generated
-`docs/contracts/` schemas on 2026-10-19, including required `original_name`.
-Both synthetic fixtures were accepted by the canonical Pydantic models. Future changes
+`docs/contracts/` schemas on 2026-10-19, including required `original_name` and the optional
+typed voice/static-preview extension (canonical stage `bf339d0`). Old v1 ZIPs remain valid:
+omitted role defaults to original, omitted voice/derived_from/provenance defaults to null.
+Extended ZIPs need the updated importer; older strict parsers can reject the new fields.
+The version and three-part root layout remain unchanged. Synthetic fixtures were accepted
+by the canonical parser. Future changes
 must be coordinated with the importer and revalidated; these are snapshots, not a competing
 format. Extra fields are forbidden at every schema object level.
 
@@ -47,6 +51,9 @@ limits align with the current canonical archive parser; a deployed importer may 
 Every inventory item requires `path`, `original_name` (string or null), `sha256` (lowercase
 64 hex or null), `size_bytes` (integer or null), `content_type`, `completeness`
 (complete/missing), `source_batch_id` (prior batch ID or null).
+Optional fields are `role` (`original` or `screenshot_preview`, default original),
+`derived_from` (safe media path or null, default null) and `provenance` (the same provenance
+object or null). Original entries require null `derived_from`.
 
 - Complete local item: hash and size required; bytes must exist at the declared path and match.
 - Missing original: no bytes and no prior batch reference. Preserve the visible message,
@@ -60,6 +67,19 @@ Every inventory item requires `path`, `original_name` (string or null), `sha256`
 - Same bytes can be referenced by multiple messages; different display-name occurrences may
   use distinct safe paths. SHA256 identifies bytes, never message identity. No content-based
   message merging or media transcoding.
+- Screenshot preview: complete `image/png`, role `screenshot_preview`, explicit provenance
+  and `derived_from` pointing to a missing original inventory entry. Both original and
+  preview must be referenced by the same message. Keep original missing and attachment
+  completeness partial. Preview hashes never establish original identity. Only a user's
+  explicit static-fallback authorization permits this representation.
+
+Static screenshot previews must be true static PNGs, never APNG (even one frame). Corrupt,
+truncated or trailing-data PNGs fail. Canonical validation verifies and decodes with Pillow;
+local previews together may contain at most 16,777,216 decoded pixels, with each dimension
+at most 16,384. The dependency-free producer deliberately accepts a narrower PNG subset:
+noninterlaced 8-bit RGB/RGBA without a palette, with CRC, framing, bounded zlib scanline and
+filter checks. Use lossless screenshot crops in that mode. Other original media bytes,
+including original animations, remain unchanged and are not subject to preview conversion.
 
 Manifest attachment hashes protect original media. The preview separately reports all local
 file hashes, including manifest/messages, and `pack` reports the resulting ZIP hash. File-hash
@@ -75,8 +95,19 @@ reports remain outside the ZIP because v1 does not permit an extra root hash fie
 | `order` | Unique increasing nonnegative observation order within this batch; do not infer times to sort |
 | `type`, `text` | Visible message kind and nullable original text; preserve punctuation, emojis, whitespace and repeated content |
 | `reply_to` | Null or `{message_id,batch_id}` resolvable in this batch or its ancestors |
-| `media` | References `{path,sha256,source_batch_id}` matching inventory exactly |
+| `media` | References `{path,sha256,source_batch_id,role?}` matching inventory exactly; role defaults original |
 | `provenance` | Same provenance shape as manifest; locator can identify viewport/position; notes describe uncertainty or visible unresolved quote |
+| `voice` | Optional null or typed voice metadata, only for type voice; described below |
+
+Voice metadata is `{original_duration:null|string, duration_ms:null|integer, transcripts:[]}`.
+Preserve the exact visible duration label (maximum 240 characters); duration_ms must be
+evidenced, 0–2147483647, and stay null when unknown. Each transcript is
+`{text,source:"wecom_ui",provenance}`: 1–200000 characters and at most 20 displayed results.
+It is derived UI transcription, never original typed message text. The producer requires
+null text for voice-only records. Voice metadata needs at least one original `audio/*`
+inventory reference, complete or missing (`audio/unknown` for unknown unavailable audio).
+If both original audio and UI transcription are unavailable, retain duration, sender,
+time label, order and a missing-audio inventory entry. Do not infer a transcript.
 
 Generated IDs are persistent local occurrence identifiers, not source IDs. Normalization may
 fill null IDs for records already labeled generated, using batch identity plus explicit order;
@@ -98,12 +129,18 @@ conversation's current active head. Prior media and replies must belong to that 
 base ancestry. Automatic anchor acceptance requires a unique full-original candidate and
 a contiguous base suffix/incoming prefix; repeated or noncontiguous mappings require
 explicit per-message importer review. A local review sidecar does not replace that review.
+Missing original evidence on either incoming or anchored base also requires explicit
+per-message review, even for a unique contiguous candidate (`incomplete_original`).
+Fingerprints exclude screenshot preview hashes and all voice transcripts/provenance;
+they include observed voice duration only when nonnull. Existing original-only fingerprints
+retain their meaning. Multiple original candidates take ambiguity priority.
 Runtime limits also include 100000 active observations per conversation (including overlap
 observations), 2000 aggregate review candidate references, and 16 MiB of summary input.
 The offline helper does not know live importer state or enforce those aggregate limits;
 successful local validation cannot promise runtime acceptance.
 
-Pending candidates, authorization evidence, local UI cursor/checkpoints, screenshots and
-OCR/transcription remain outside the ZIP. Derived records should identify original batch,
+Pending candidates, authorization evidence, local UI cursor/checkpoints and other
+screenshots/OCR/transcription remain outside the ZIP. Only the typed derived representations
+above belong in the canonical package. External derived records should identify original batch,
 message and attachment hash, method/model, result and uncertainty. They cannot replace
 original text, resurrect unavailable messages or assert an original media file exists.

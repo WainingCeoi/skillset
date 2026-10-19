@@ -55,9 +55,11 @@ For voice messages, animated stickers or a user-authorized screenshot fallback, 
    matches, then package locally. Deliver the path and limitations. Ask separately only
    if the user later requests an upload or another action outside capture authorization.
 
-Derived OCR/transcription belongs in separately labeled local sidecars outside the original
-ZIP, with method and source reference; never put it in original message text or substitute
-it for missing bytes. The strict canonical format is `slinx-chat-zip-v1`.
+Keep derived content separate from original text and bytes. The updated canonical
+`slinx-chat-zip-v1` permits typed `voice.transcripts` from the WeCom UI and an explicitly
+authorized `screenshot_preview` linked to its missing original. Other OCR/transcription
+belongs in labeled local sidecars outside the ZIP. Derived content never fills an original
+media gap. Read the exact fields and compatibility rules in the contract reference.
 
 ## Local tooling and synthetic verification
 
@@ -66,7 +68,7 @@ the network. Commands and synthetic baseline/delta reproduction are documented i
 [references/usage.md](references/usage.md). Test without opening user chats:
 
 ```bash
-python3 -m unittest discover -s tests -p 'test_wecom_capture.py' -v
+python3 -m unittest discover -s tests -p 'test_wecom*.py' -v
 python3 scripts/package_skills.py build
 python3 scripts/package_skills.py --check
 ```

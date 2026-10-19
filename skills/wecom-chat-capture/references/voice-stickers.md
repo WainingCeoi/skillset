@@ -45,6 +45,9 @@ crop only the sticker region, exclude surrounding chat and unrelated UI, preserv
 crop pixels, and save a lossless PNG. Do not use image generation, redraw the sticker, make up
 animation frames, or describe the PNG as a downloaded original. Keep any full-window temporary
 capture private and remove it once the crop is verified; retain only the cropped output.
+The preview must be static PNG, never APNG or another animation, including a one-frame APNG.
+Use noninterlaced 8-bit RGB/RGBA crops for the local helper; total local previews are bounded
+to 16,777,216 decoded pixels and each dimension to 16,384.
 
 Keep the missing original inventory entry and add the static preview as a separately labeled
 derived representation. Overall attachment completeness stays partial. Original message text,
@@ -64,3 +67,8 @@ Original-versus-derived roles, voice duration and UI transcripts must remain exp
 normalization, preview and ZIP round trips. A derived image/transcript cannot satisfy original
 media completeness or become an original message identity anchor. Test these rules using
 invented images/audio/transcript strings only.
+
+Use `voice-record` and the invented examples in [usage.md](usage.md#voice-and-static-preview-examples)
+to prepare the typed voice states. Original audio is copied unchanged; transcript-only and
+missing-both records retain a missing original audio reference. This is metadata preparation,
+not an audio capture or transcription command.

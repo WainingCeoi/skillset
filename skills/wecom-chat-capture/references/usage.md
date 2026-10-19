@@ -24,6 +24,8 @@ time. The delta contains three observations, two reviewed overlap mappings and o
 message; its image resolves from the baseline without duplicating media bytes. The review
 file is explicitly invented for this synthetic example; never use it to approve real overlap.
 The preview flags both repeated-text candidates rather than choosing an occurrence.
+Its overlap is intentionally repeated/noncontiguous and needs explicit per-message Slinx
+importer review too; the local synthetic review file is not importer approval.
 
 ## Prepare actual authorized observations locally
 
@@ -80,6 +82,9 @@ Review file (outside ZIP):
 Only create real review decisions from explicit occurrence review, never AI fingerprint
 matching. If uncertain, omit that anchor, retain observations, and report the pending candidates.
 The helper cannot verify the truth of evidence text; Slinx still applies importer review.
+Before an eventual authorized import, verify that `base_batch_id` is the conversation's
+current active head. The runtime accepts only a linear chain and may require per-message
+review for repeated or noncontiguous mappings; see [runtime constraints](contract.md#overlap-and-derived-records).
 
 ## Checkpoint and resume
 

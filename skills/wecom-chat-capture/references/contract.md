@@ -93,6 +93,16 @@ counts and ambiguity without mutating records; large reports cap displayed candi
 review remain separate observations with no declared mapping. Slinx performs its own review
 and identity validation; this helper cannot approve an importer operation.
 
+The current Slinx v1 runtime accepts a linear history: `base_batch_id` must be the
+conversation's current active head. Prior media and replies must belong to that declared
+base ancestry. Automatic anchor acceptance requires a unique full-original candidate and
+a contiguous base suffix/incoming prefix; repeated or noncontiguous mappings require
+explicit per-message importer review. A local review sidecar does not replace that review.
+Runtime limits also include 100000 active observations per conversation (including overlap
+observations), 2000 aggregate review candidate references, and 16 MiB of summary input.
+The offline helper does not know live importer state or enforce those aggregate limits;
+successful local validation cannot promise runtime acceptance.
+
 Pending candidates, authorization evidence, local UI cursor/checkpoints, screenshots and
 OCR/transcription remain outside the ZIP. Derived records should identify original batch,
 message and attachment hash, method/model, result and uncertainty. They cannot replace

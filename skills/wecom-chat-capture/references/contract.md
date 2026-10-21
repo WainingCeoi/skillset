@@ -70,8 +70,9 @@ object or null). Original entries require null `derived_from`.
 - Screenshot preview: complete `image/png`, role `screenshot_preview`, explicit provenance
   and `derived_from` pointing to a missing original inventory entry. Both original and
   preview must be referenced by the same message. Keep original missing and attachment
-  completeness partial. Preview hashes never establish original identity. Only a user's
-  explicit static-fallback authorization permits this representation.
+  completeness partial. Preview hashes never establish original identity. Authorized
+  visual message capture includes this representation unless the user excludes screenshots.
+  This capture policy does not change the pinned schema or turn the crop into original media.
 
 Static screenshot previews must be true static PNGs, never APNG (even one frame). Corrupt,
 truncated or trailing-data PNGs fail. Canonical validation verifies and decodes with Pillow;
@@ -124,20 +125,14 @@ counts and ambiguity without mutating records; large reports cap displayed candi
 review remain separate observations with no declared mapping. Slinx performs its own review
 and identity validation; this helper cannot approve an importer operation.
 
-The current Slinx v1 runtime accepts a linear history: `base_batch_id` must be the
-conversation's current active head. Prior media and replies must belong to that declared
-base ancestry. Automatic anchor acceptance requires a unique full-original candidate and
-a contiguous base suffix/incoming prefix; repeated or noncontiguous mappings require
-explicit per-message importer review. A local review sidecar does not replace that review.
-Missing original evidence on either incoming or anchored base also requires explicit
-per-message review, even for a unique contiguous candidate (`incomplete_original`).
+Prior media and replies must resolve through the explicitly supplied base ancestry. Local
+validation checks those files and links; it does not inspect a receiving system's state or
+promise ingestion. This skill stops after delivering the verified ZIP.
+
 Fingerprints exclude screenshot preview hashes and all voice transcripts/provenance;
-they include observed voice duration only when nonnull. Existing original-only fingerprints
-retain their meaning. Multiple original candidates take ambiguity priority.
-Runtime limits also include 100000 active observations per conversation (including overlap
-observations), 2000 aggregate review candidate references, and 16 MiB of summary input.
-The offline helper does not know live importer state or enforce those aggregate limits;
-successful local validation cannot promise runtime acceptance.
+they include observed voice duration only when nonnull. Original-only fingerprints retain
+their meaning. Missing originals remain incomplete evidence even when the visual crop is
+readable. A candidate match never grants permission to merge occurrences.
 
 Pending candidates, authorization evidence, local UI cursor/checkpoints and other
 screenshots/OCR/transcription remain outside the ZIP. Only the typed derived representations

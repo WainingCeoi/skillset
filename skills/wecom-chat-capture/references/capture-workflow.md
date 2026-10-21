@@ -30,19 +30,25 @@ Keep any necessary full UI screenshots private outside the package and repositor
 - Time: keep the exact UI label. Normalize only when date and timezone are evidenced. Keep
   unknown absolute time null, including ambiguous daylight-saving times or relative dates
   that cannot be established. Do not invent timestamps to make sorting easier; use order.
+  A shared date/time separator is context, not evidence that every nearby message has that
+  exact sent time. Record that context in provenance rather than copying it to each message.
 - Reply: preserve the visible quote, with a resolved reference only if the target is evidenced.
   An unresolved quote is valid and must not be silently linked by matching text alone.
 - Image/file/audio/video: use the UI's original download/save action. Preserve bytes, original
   filename and media kind. Record expired, blocked, not downloaded, thumbnail-only and
   uncertain originals separately. Never label a thumbnail or screenshot as original media.
-- Animated stickers: explicitly inspect the sticker's right-click menu for `Save As GIF`,
+- Stickers: inspect the sticker's right-click menu for `Save As GIF`,
   `另存为 GIF`, or `另存为`; an absent AX menu is not proof the app has no export feature.
-  Check the screenshot/current window state too. If the supported UI tool still exposes no
-  menu, report that exact observation and request UI assistance instead of claiming the
-  animation is unavailable. Use only the observed save action and a private local path.
+  Check the screenshot/current window state too. If no usable save action is exposed,
+  record that precise limitation and continue with a scoped lossless static crop. Do not
+  block the batch solely because original export failed. A permission denial stops that
+  action; it is not permission to bypass a screenshot restriction. Use only observed save
+  actions and a private local path.
   Verify the saved format from bytes, retain its original animation unchanged, and report
   frames/durations only when decoded from the actual saved file. Tool screenshots are
-  isolated observations, not a complete frame sequence with source timing.
+  isolated observations, not a complete frame sequence with source timing. Follow
+  [voice-stickers.md](voice-stickers.md) to capture and inspect the crop; use `sticker-record`
+  so the PNG, missing original, and same-message references are constructed together.
 - System/unsupported/deleted/recalled messages: retain what is visibly stated and record
   unknown payloads. Do not infer a recalled message's prior text or an unavailable file.
 - Derived OCR/transcription: opt-in local processing only; identify method, source attachment
@@ -78,12 +84,18 @@ repackage with original bytes or an explicit unavailable status, not a dangling 
 If a missing original is later recovered, keep the earlier validated ZIP immutable. Make a
 new batch identity for the corrected package and record supersedes/replacement locally;
 do not silently rewrite an existing batch. A replacement baseline is not an automatic
-incremental import into Slinx's active linear history.
+replacement or upload into another system. This workflow ends at ZIP delivery.
 
 ## Review and stopping conditions
 
 Inspect the preview for selected range, actual coverage, message/media counts, missing media,
 unknown times/senders, unresolved replies, overlap ambiguity and declared dependencies.
+Check `sticker_visuals`: each visible sticker must have an original image or a verified
+static preview. Render an offline review outside the package, inspect the actual artwork
+against the UI observation, then pack with `--require-sticker-visual`. If screenshots are
+excluded or a sticker itself is unavailable/unreadable, preserve the gap and explicitly
+report it when packing without that flag. The flag checks files and links, not UI fidelity.
+After packing, validate and render the ZIP itself to catch omitted bytes or wrong references.
 Completeness means only the authorized visible scope was covered with no known gap. A
 structurally valid partial package is still partial. Authentication/permission/download
 blocks stop the affected action; record the exact action, target, reason, completed work

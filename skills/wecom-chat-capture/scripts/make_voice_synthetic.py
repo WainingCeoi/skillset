@@ -87,6 +87,20 @@ def generate(output):
     (baseline / "manifest.json").write_bytes(cp.encoded(manifest))
     (baseline / "messages.jsonl").write_bytes(b"".join(cp.encoded(m) for m in messages))
     cp.load_bundle(baseline)
+    # Ready-to-run sticker helper specs; the fixture PNG is invented artwork, not a chat capture.
+    for kind in ("original", "preview", "missing"):
+        observation = copy.deepcopy(sticker)
+        observation.update(id=f"synthetic-sticker-{kind}", media=[])
+        observation["sender"]["name"] = "合成贴纸成员"
+        spec = {"message": observation, "sticker": {
+            "file": "synthetic-preview.png" if kind == "original" else None,
+            "original_name": "synthetic-original.png" if kind == "original" else None,
+            "missing_reason": None if kind == "original" else "Synthetic fixture: original export unavailable.",
+            "preview": {"file": "synthetic-preview.png", "provenance": {
+                "source": "synthetic", "capture_method": "invented screenshot crop, no actual capture",
+                "locator": "synthetic:sticker-frame", "notes": "Static invented artwork; original missing."
+            }} if kind == "preview" else None}}
+        (output / f"sticker-{kind}.spec.json").write_bytes(cp.encoded(spec))
     return output
 
 

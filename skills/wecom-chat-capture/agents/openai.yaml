@@ -1,4 +1,4 @@
 interface:
   display_name: "WeCom Chat Capture"
-  short_description: "Capture authorized WeCom chats into verified ZIP batches"
-  default_prompt: "Use $wecom-chat-capture to package this authorized WeCom conversation range locally."
+  short_description: "Capture WeCom text and sticker visuals into verified ZIPs"
+  default_prompt: "Use $wecom-chat-capture to capture this authorized WeCom range, preserve visible stickers, visually verify the ZIP, and deliver it locally."

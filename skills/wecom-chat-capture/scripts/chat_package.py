@@ -523,6 +523,7 @@ def preview(package, by_batch):
         "completeness": manifest["completeness"],
         "missing_media": [i for i in manifest["attachments"] if i["completeness"] == "missing"],
         "derived_previews": [i for i in manifest["attachments"] if media_role(i) == "screenshot_preview"],
+        "sticker_visuals": sticker_visuals(package, by_batch),
         "voice_messages": [{"message_id": m["id"], "original_duration": (m.get("voice") or {}).get("original_duration"),
                             "duration_ms": (m.get("voice") or {}).get("duration_ms"),
                             "ui_transcripts": len((m.get("voice") or {}).get("transcripts", [])),
@@ -540,6 +541,66 @@ def preview(package, by_batch):
         "notice": "Candidates are not identity decisions. No records were merged. UI scope accuracy needs operator review.",
         "file_sha256": {name: digest(data) for name, data in sorted(package.entries.items())},
     }
+
+
+def _attachment_bytes(package, item, by_batch):
+    """Resolve bytes through the explicitly supplied, already validated ancestry."""
+    visited = set()
+    while item["source_batch_id"] is not None:
+        source = item["source_batch_id"]
+        if source in visited or source not in by_batch:
+            return None
+        visited.add(source)
+        package = by_batch[source]
+        item = next((prior for prior in package.manifest["attachments"] if prior["path"] == item["path"]), None)
+        if item is None:
+            return None
+    return package.entries.get(item["path"])
+
+
+def sticker_visuals(package, by_batch=None):
+    """Report verified visual containers; this cannot verify what the operator saw."""
+    by_batch = by_batch or {}
+    inventory = {item["path"]: item for item in package.manifest["attachments"]}
+    result = []
+    for message in package.messages:
+        if message["type"] != "sticker":
+            continue
+        complete = [inventory[ref["path"]] for ref in message["media"]
+                    if inventory[ref["path"]]["completeness"] == "complete"]
+        originals = [item["path"] for item in complete if media_role(item) == "original"]
+        verified, previews, unverified = [], [], []
+        for item in complete:
+            data = _attachment_bytes(package, item, by_batch)
+            if data is None:
+                unverified.append(item["path"])
+                continue
+            try:
+                if media_role(item) == "screenshot_preview":
+                    static_png_size(data)
+                    previews.append(item["path"])
+                else:
+                    detected = original_sticker_type(data)
+                    if detected in {"image/png", "image/gif", "image/webp"} and item["content_type"] == detected:
+                        verified.append(item["path"])
+                    else:
+                        unverified.append(item["path"])
+            except (Invalid, ValueError, struct.error, zlib.error):
+                unverified.append(item["path"])
+        status = "original_available" if verified else "static_preview" if previews else "visual_missing"
+        result.append({"message_id": message["id"], "status": status,
+                       "original_paths": originals, "preview_paths": previews,
+                       "unverified_paths": unverified,
+                       "reason": ("Original bytes preserved but visual format/MIME or referenced bytes are unverified."
+                                  if unverified else "No original visual bytes or static preview available.")
+                                 if status == "visual_missing" else None})
+    return result
+
+
+def require_sticker_visual(package, by_batch=None):
+    missing = [item["message_id"] for item in sticker_visuals(package, by_batch) if item["status"] == "visual_missing"]
+    require(not missing, "sticker visual missing: " + ", ".join(missing)
+            + "; capture a permitted preview or omit --require-sticker-visual for a documented genuine gap")
 
 
 def require_review(package, review_path):
@@ -668,10 +729,15 @@ def stage_media(source, directory, original_name=None, content_type="application
                 role="original", derived_from=None, provenance=None):
     """Copy an explicitly downloaded file unchanged, returning safe inventory metadata."""
     data = read_limited(source)
+    return _stage_media_bytes(data, directory, original_name if original_name is not None else Path(source).name,
+                              content_type, role, derived_from, provenance)
+
+
+def _stage_media_bytes(data, directory, original_name, content_type, role="original", derived_from=None, provenance=None):
+    """Stage the same bytes that were verified, without a second source-file read."""
     directory = no_links(directory)
-    directory.mkdir(parents=True, exist_ok=True)
     sha = digest(data)
-    metadata = {"path": "media/staged.bin", "original_name": original_name if original_name is not None else Path(source).name,
+    metadata = {"path": "media/staged.bin", "original_name": original_name,
                 "sha256": sha, "size_bytes": len(data), "content_type": content_type,
                 "completeness": "complete", "source_batch_id": None,
                 "role": role, "derived_from": derived_from, "provenance": provenance}
@@ -680,6 +746,7 @@ def stage_media(source, directory, original_name=None, content_type="application
     inventory_semantics(metadata)
     if role == "screenshot_preview":
         static_png_size(data)
+    directory.mkdir(parents=True, exist_ok=True)
     # Opaque names avoid display-filename traversal and preserve same-byte occurrences.
     index = 1
     while True:
@@ -690,10 +757,160 @@ def stage_media(source, directory, original_name=None, content_type="application
             break
         except FileExistsError:
             index += 1
-    with os.fdopen(descriptor, "wb") as stream:
-        stream.write(data)
+    try:
+        with os.fdopen(descriptor, "wb") as stream:
+            stream.write(data)
+    except Exception:
+        target.unlink(missing_ok=True)
+        raise
     metadata["path"] = f"media/{name}"
     return metadata
+
+
+def original_sticker_type(data):
+    """Check common image containers from bytes; no reencoding or animation claims.
+
+    This verifies framing/header evidence, not compressed image decoding. Unknown
+    proprietary originals remain opaque bytes rather than receiving a guessed MIME.
+    """
+    require(bool(data), "sticker original is empty")
+    if data.startswith(b"\x89PNG\r\n\x1a\n"):
+        offset, kinds = 8, []
+        while offset < len(data):
+            require(offset + 12 <= len(data), "truncated original PNG chunk")
+            size = struct.unpack_from(">I", data, offset)[0]
+            kind = data[offset + 4:offset + 8]
+            end = offset + 12 + size
+            require(end <= len(data), "truncated original PNG payload")
+            payload = data[offset + 8:end - 4]
+            require(zlib.crc32(kind + payload) & 0xffffffff == struct.unpack_from(">I", data, end - 4)[0],
+                    "original PNG CRC mismatch")
+            if not kinds:
+                require(kind == b"IHDR" and size == 13 and all(struct.unpack_from(">II", payload)),
+                        "original PNG needs a valid IHDR")
+            else:
+                require(kind != b"IHDR", "duplicate original PNG header")
+            kinds.append(kind)
+            offset = end
+            if kind == b"IEND":
+                require(size == 0 and offset == len(data), "original PNG trailing data")
+                break
+        require(kinds and kinds[-1] == b"IEND" and b"IDAT" in kinds, "original PNG missing image or IEND")
+        return "image/png"
+    if data.startswith((b"GIF87a", b"GIF89a")):
+        require(len(data) >= 14 and all(struct.unpack_from("<HH", data, 6)), "truncated original GIF header")
+        offset = 13 + (3 * (2 ** ((data[10] & 7) + 1)) if data[10] & 128 else 0)
+        frames = 0
+        def blocks(cursor):
+            while True:
+                require(cursor < len(data), "truncated original GIF data blocks")
+                size = data[cursor]
+                cursor += 1
+                require(cursor + size <= len(data), "truncated original GIF block")
+                cursor += size
+                if size == 0:
+                    return cursor
+        while offset < len(data):
+            marker = data[offset]
+            offset += 1
+            if marker == 0x3b:
+                require(frames > 0 and offset == len(data), "original GIF missing image or trailing data")
+                return "image/gif"
+            if marker == 0x21:
+                require(offset < len(data), "truncated original GIF extension")
+                offset = blocks(offset + 1)
+            elif marker == 0x2c:
+                require(offset + 9 <= len(data) and all(struct.unpack_from("<HH", data, offset + 4)),
+                        "truncated original GIF image descriptor")
+                packed = data[offset + 8]
+                offset += 9 + (3 * (2 ** ((packed & 7) + 1)) if packed & 128 else 0)
+                require(offset < len(data) and 2 <= data[offset] <= 8, "invalid original GIF LZW header")
+                offset = blocks(offset + 1)
+                frames += 1
+            else:
+                raise Invalid("invalid original GIF block marker")
+        raise Invalid("original GIF missing trailer")
+    if data.startswith(b"RIFF") and data[8:12] == b"WEBP":
+        require(len(data) >= 20 and struct.unpack_from("<I", data, 4)[0] + 8 == len(data),
+                "original WebP RIFF size mismatch")
+        offset, image = 12, False
+        while offset < len(data):
+            require(offset + 8 <= len(data), "truncated original WebP chunk")
+            kind = data[offset:offset + 4]
+            size = struct.unpack_from("<I", data, offset + 4)[0]
+            end = offset + 8 + size
+            require(end + (size & 1) <= len(data), "truncated original WebP payload")
+            if kind in {b"VP8 ", b"VP8L", b"ANMF"}:
+                require(size >= {b"VP8 ": 10, b"VP8L": 5, b"ANMF": 16}[kind], "truncated original WebP image")
+                image = True
+            offset = end + (size & 1)
+        require(image, "original WebP missing image chunk")
+        return "image/webp"
+    return "application/octet-stream"
+
+
+def prepare_sticker_record(spec, media_directory):
+    """Prepare a caller-observed sticker and its original or static UI fallback."""
+    require(type(spec) is dict and set(spec) == {"message", "sticker"}, "sticker spec needs only message and sticker")
+    message, sticker = copy.deepcopy(spec["message"]), spec["sticker"]
+    require(type(sticker) is dict and set(sticker) == {"file", "original_name", "missing_reason", "preview"},
+            "sticker needs file, original_name, missing_reason and preview")
+    require(message.get("type") == "sticker" and message.get("media") == [] and message.get("voice") is None,
+            "sticker record requires type sticker, empty incoming refs and no voice metadata")
+    message_schema = strict_json((SCHEMAS / f"{VERSION}.message.schema.json").read_bytes())
+    manifest_schema = strict_json((SCHEMAS / f"{VERSION}.manifest.schema.json").read_bytes())
+    schema_check(message, message_schema)
+    require((message["id_kind"] == "source") == bool(message["source_id"]), "sticker source identity mismatch")
+    require(message["id_kind"] != "generated" or message["source_id"] is None, "generated source ID must be null")
+    timestamp(message["sent_at"])
+    require(sticker["original_name"] is None or type(sticker["original_name"]) is str,
+            "original_name must be string or null")
+    original_data = preview_data = None
+    crop = sticker["preview"]
+    if sticker["file"] is not None:
+        require(type(sticker["file"]) is str and sticker["missing_reason"] is None and crop is None,
+                "complete sticker original needs local file, no missing reason and no derived fallback")
+        original_data = read_limited(Path(sticker["file"]))
+        content_type = original_sticker_type(original_data)
+    else:
+        require(type(sticker["missing_reason"]) is str and bool(sticker["missing_reason"].strip()),
+                "missing sticker original needs an explicit gap reason")
+        content_type = "application/octet-stream"
+        message["provenance"]["notes"] = ((message["provenance"].get("notes") or "")
+                                          + " Original sticker missing: " + sticker["missing_reason"]).strip()
+        if crop is not None:
+            require(type(crop) is dict and set(crop) == {"file", "provenance"} and type(crop["file"]) is str,
+                    "sticker preview needs local file and explicit provenance")
+            schema_check(crop["provenance"], message_schema["$defs"]["Provenance"], message_schema)
+            preview_data = read_limited(Path(crop["file"]))
+            static_png_size(preview_data)
+    # Validate all metadata before writing media so malformed specs cannot strand bytes.
+    schema_check(message, message_schema)
+    original = {"path": f"media/missing-sticker-{digest(message['id'].encode())[:24]}.bin",
+                "original_name": sticker["original_name"], "sha256": None, "size_bytes": None,
+                "content_type": content_type, "completeness": "missing", "source_batch_id": None,
+                "role": "original", "derived_from": None, "provenance": message["provenance"]}
+    schema_check(original, manifest_schema["$defs"]["InventoryItem"], manifest_schema)
+    staged = []
+    try:
+        if original_data is not None:
+            original = _stage_media_bytes(original_data, media_directory, sticker["original_name"], content_type,
+                                          provenance=message["provenance"])
+            staged.append(original)
+        attachments = [original]
+        if preview_data is not None:
+            item = _stage_media_bytes(preview_data, media_directory, "screenshot-derived-static.png", "image/png",
+                                     "screenshot_preview", original["path"], crop["provenance"])
+            staged.append(item)
+            attachments.append(item)
+        message["media"] = [{key: item[key] for key in ("path", "sha256", "source_batch_id", "role")}
+                            for item in attachments]
+        schema_check(message, message_schema)
+        return {"message": message, "attachments": attachments}
+    except Exception:
+        for item in staged:
+            (no_links(media_directory) / Path(item["path"]).name).unlink(missing_ok=True)
+        raise
 
 
 def prepare_voice_record(spec, media_directory):
@@ -747,6 +964,8 @@ def main():
             sub.add_argument("--output", type=Path, required=True)
         if command == "pack":
             sub.add_argument("--review", type=Path)
+            sub.add_argument("--require-sticker-visual", action="store_true",
+                             help="fail if any sticker lacks supported original image bytes or a static preview")
         if command in ("checkpoint", "resume-check"):
             sub.add_argument("--checkpoint", type=Path, required=True)
         if command == "checkpoint":
@@ -764,12 +983,50 @@ def main():
     sub.add_argument("source", type=Path, help="UI observation JSON, not audio for transcription")
     sub.add_argument("--media-dir", type=Path, required=True)
     sub.add_argument("--output", type=Path, required=True, help="new private record JSON; transcript not printed")
+    sub = subs.add_parser("sticker-record")
+    sub.add_argument("source", type=Path, help="observed sticker JSON with saved original or UI crop")
+    sub.add_argument("--media-dir", type=Path, required=True)
+    sub.add_argument("--output", type=Path, required=True, help="new private message/inventory JSON")
     args = parser.parse_args()
     try:
         if args.command == "stage-media":
             provenance = strict_json(read_limited(args.provenance_file)) if args.provenance_file else None
             result = stage_media(args.source, args.media_dir, args.original_name, args.content_type,
                                  args.role, args.derived_from, provenance)
+        elif args.command == "sticker-record":
+            output = no_links(args.output)
+            require(not output.exists(), "sticker record output already exists")
+            spec = strict_json(read_limited(args.source))
+            require(type(spec) is dict, "sticker spec must be an object")
+            sticker = spec.get("sticker", {})
+            paths = [sticker]
+            if type(sticker) is dict and type(sticker.get("preview")) is dict:
+                paths.append(sticker["preview"])
+            for entry in paths:
+                require(type(entry) is dict, "sticker and preview must be objects")
+                value = entry.get("file")
+                if type(value) is str and not Path(value).is_absolute():
+                    entry["file"] = str(no_links(args.source).parent / value)
+            record = prepare_sticker_record(spec, args.media_dir)
+            created_output = False
+            try:
+                output.parent.mkdir(parents=True, exist_ok=True)
+                fd = os.open(output, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+                created_output = True
+                with os.fdopen(fd, "wb") as stream:
+                    stream.write(encoded(record))
+            except Exception:
+                if created_output:
+                    output.unlink(missing_ok=True)
+                for item in record["attachments"]:
+                    if item["completeness"] == "complete":
+                        (no_links(args.media_dir) / Path(item["path"]).name).unlink(missing_ok=True)
+                raise
+            report_entries = {item["path"]: read_limited(no_links(args.media_dir) / Path(item["path"]).name)
+                              for item in record["attachments"] if item["completeness"] == "complete"}
+            report_package = Package({"attachments": record["attachments"]}, [record["message"]], report_entries)
+            result = {"output": str(output), **sticker_visuals(report_package)[0],
+                      "attachment_count": len(record["attachments"])}
         elif args.command == "voice-record":
             output = no_links(args.output)
             require(not output.exists(), "voice record output already exists")
@@ -791,6 +1048,8 @@ def main():
             package, batches = load_bundle(args.source, args.prior)
             result = preview(package, batches)
             if args.command == "pack":
+                if args.require_sticker_visual:
+                    require_sticker_visual(package, batches)
                 require_review(package, args.review)
                 create_zip(package, args.output)
                 result["output"] = str(args.output)

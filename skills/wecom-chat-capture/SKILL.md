@@ -1,6 +1,6 @@
 ---
 name: wecom-chat-capture
-description: Capture an authorized WeCom conversation and range through the open UI into verified local ZIP batches, preserving visible text, unchanged original media, and labeled sticker screenshot fallbacks. Use for 企业微信聊天采集、导出、打包 and incremental capture; stops at ZIP delivery, without hidden extraction or system import.
+description: Capture an authorized WeCom conversation and range through the open UI into verified local ZIP batches, preserving visible text, voice-origin UI transcripts by default, unchanged non-voice media, and labeled sticker screenshot fallbacks. Use for 企业微信聊天采集、导出、打包 and incremental capture; stops at ZIP delivery, without hidden extraction or system import.
 ---
 
 # WeCom chat capture
@@ -45,7 +45,13 @@ For voice messages or stickers, also read
    wording, punctuation, emojis, line breaks, display names, timestamp labels and order.
    Expand truncated text through the UI where authorized. Record unreadable or unavailable
    content as a gap rather than reconstructing it.
-3. Save original downloadable media bytes. A thumbnail or screenshot is not the original
+   For voice messages, capture the displayed WeCom transcript or use the built-in `转文字`
+   action by default. Keep `type:"voice"`, null original `text`, and the transcript in
+   `voice.transcripts` with `source:"wecom_ui"`. Preserve sender, time, order and duration.
+   Skip audio export attempts unless the user explicitly requests original audio. Record
+   audio as intentionally not captured; an absent transcript is a gap, not a reason to try
+   audio export or drop the voice occurrence.
+3. Save original downloadable non-voice media bytes. A thumbnail or screenshot is not the original
    attachment. Keep display filenames as metadata; safe storage names come from the tool.
    For a visible sticker whose original cannot be saved, capture and inspect a lossless PNG
    crop, then use `sticker-record` to link it to the missing original on that occurrence.

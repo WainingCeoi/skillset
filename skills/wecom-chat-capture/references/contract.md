@@ -107,8 +107,11 @@ evidenced, 0–2147483647, and stay null when unknown. Each transcript is
 It is derived UI transcription, never original typed message text. The producer requires
 null text for voice-only records. Voice metadata needs at least one original `audio/*`
 inventory reference, complete or missing (`audio/unknown` for unknown unavailable audio).
-If both original audio and UI transcription are unavailable, retain duration, sender,
-time label, order and a missing-audio inventory entry. Do not infer a transcript.
+The default capture workflow skips audio export and retains a missing inventory entry with
+an explicit intentional-omission reason and no payload file. This does not assert that
+WeCom disallows export. Original attachment completeness remains partial. Capture displayed
+UI transcripts by default; if no readable transcript is available, retain duration, sender,
+time label, order, the missing-audio entry and an explicit transcript gap. Do not infer text.
 
 Generated IDs are persistent local occurrence identifiers, not source IDs. Normalization may
 fill null IDs for records already labeled generated, using batch identity plus explicit order;

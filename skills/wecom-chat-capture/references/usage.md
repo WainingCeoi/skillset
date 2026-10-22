@@ -57,12 +57,17 @@ marked it missing, create a distinct corrected batch and an external supersedes 
 
 ## Voice and static preview examples
 
+Voice capture defaults to the WeCom UI transcript, retaining its voice-message origin and
+skipping all audio export attempts. Use the displayed result or the scoped built-in `转文字`
+action; this helper only packages the observed text. Keep `type:"voice"`, `text:null`, and
+`voice.transcripts[].source:"wecom_ui"`, plus visible sender/time/order/duration. If the
+transcript is unavailable, retain the voice occurrence with an explicit transcript gap.
+
 Generate synthetic examples in a new directory; no real chat or audio is accessed:
 
 ```bash
 python3 skills/wecom-chat-capture/scripts/make_voice_synthetic.py /tmp/wecom-voice-demo
 python3 skills/wecom-chat-capture/scripts/chat_package.py preview /tmp/wecom-voice-demo/baseline
-python3 skills/wecom-chat-capture/scripts/chat_package.py voice-record /tmp/wecom-voice-demo/voice-original.spec.json --media-dir /tmp/wecom-voice-stage/media --output /tmp/wecom-voice-original.json
 python3 skills/wecom-chat-capture/scripts/chat_package.py voice-record /tmp/wecom-voice-demo/voice-transcript-only.spec.json --media-dir /tmp/wecom-voice-stage/media --output /tmp/wecom-voice-transcript.json
 python3 skills/wecom-chat-capture/scripts/chat_package.py voice-record /tmp/wecom-voice-demo/voice-missing-both.spec.json --media-dir /tmp/wecom-voice-stage/media --output /tmp/wecom-voice-missing.json
 ```
@@ -70,11 +75,19 @@ python3 skills/wecom-chat-capture/scripts/chat_package.py voice-record /tmp/weco
 The baseline has four occurrences: unchanged invented WAV, missing audio with invented UI
 transcription, missing audio and no transcription, and missing animated sticker plus a typed
 static PNG preview. These examples do not claim a downloaded original or real UI evidence.
+The WAV is a compatibility example for explicitly requested original audio, not the default.
 `voice-record` consumes `{message,audio}` as shown in the specs, with empty incoming media.
 `audio` contains only `file`, `original_name`, `content_type`, `missing_reason`. Relative file
-paths resolve beside the spec. Complete originals need a local file and null missing_reason;
-missing originals need null file, an explicit reason and an audio MIME kind. Unknown codec
-is `audio/unknown`. Output is an exclusive private JSON file containing message and attachment
+paths resolve beside the spec. For the default, set `audio.file:null` and supply a reason such
+as `Audio not captured: transcript-only voice capture; audio export not attempted.` Unknown
+filename stays null and unknown codec is `audio/unknown`. Keep the required missing-original
+inventory/ref metadata; no dummy audio file is created. Describe this as intentional omission,
+not an observed export failure. Original attachment completeness remains partial without
+blocking delivery of the captured transcript. For an explicit original-audio request only,
+complete originals need an already saved local file and null missing_reason.
+Include intentional audio omission and `export not attempted` in manifest completeness notes;
+if no readable UI transcript exists, keep `transcripts:[]` and note that separate gap.
+Output is an exclusive private JSON file containing message and attachment
 objects to insert in the batch; stdout reports only identifiers/counts, not transcript text.
 Unknown duration/time stay null. This helper never records, plays or transcribes audio.
 

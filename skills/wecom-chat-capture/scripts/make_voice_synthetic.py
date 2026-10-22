@@ -49,8 +49,8 @@ def generate(output):
                                  "locator": "synthetic:transcript-2", "notes": "Derived UI transcription, not original sender text."}}
     specs = [
         {"message": message(0, '1″', 1000), "audio": {"file": "synthetic-original.wav", "original_name": "合成语音.wav", "content_type": "audio/wav", "missing_reason": None}},
-        {"message": message(1, '12″', 12000, [transcript]), "audio": {"file": None, "original_name": None, "content_type": "audio/unknown", "missing_reason": "Synthetic original export unavailable; only UI-derived transcription visible."}},
-        {"message": message(2, '7″'), "audio": {"file": None, "original_name": None, "content_type": "audio/unknown", "missing_reason": "Synthetic original export and UI transcription both unavailable; occurrence retained."}},
+        {"message": message(1, '12″', 12000, [transcript]), "audio": {"file": None, "original_name": None, "content_type": "audio/unknown", "missing_reason": "Synthetic transcript-only capture: audio intentionally not collected; audio export not attempted. UI-derived transcription retained."}},
+        {"message": message(2, '7″'), "audio": {"file": None, "original_name": None, "content_type": "audio/unknown", "missing_reason": "Synthetic transcript-only capture: audio intentionally not collected; audio export not attempted. UI transcription unavailable; occurrence retained."}},
     ]
     names = ("voice-original.spec.json", "voice-transcript-only.spec.json", "voice-missing-both.spec.json")
     messages, inventory = [], []
@@ -82,7 +82,7 @@ def generate(output):
                 "counts": {"messages": len(messages), "attachments": len(inventory)}, "attachments": inventory,
                 "completeness": {"history": "partial", "attachments": "partial", "notes": [
                     "Invented voice/sticker fixtures only; no real group searched or captured.",
-                    "Two voice audio originals and one animated sticker original are missing. UI transcript/static preview do not recover originals."]},
+                    "Two voice audio originals intentionally not collected under transcript-only capture; audio export not attempted. One UI transcript is unavailable and one animated sticker original is missing. UI transcript/static preview do not recover originals."]},
                 "provenance": provenance, "overlap_anchors": []}
     (baseline / "manifest.json").write_bytes(cp.encoded(manifest))
     (baseline / "messages.jsonl").write_bytes(b"".join(cp.encoded(m) for m in messages))

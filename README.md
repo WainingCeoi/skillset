@@ -9,7 +9,7 @@ and `references/` (deep-dive docs loaded on demand).
 
 | Skill | What it does |
 |---|---|
-| [`skills/wecom-chat-capture/`](skills/wecom-chat-capture/) | Capture an authorized WeCom conversation/range through its open UI into verified ZIP batches, with unchanged originals, visible sticker crop fallbacks, voice/UI transcripts, and explicit gaps. Includes a sticker-record helper and offline visual review before ZIP delivery. |
+| [`skills/wecom-chat-capture/`](skills/wecom-chat-capture/) | Capture an authorized WeCom conversation/range through its open UI into verified ZIP batches, with unchanged non-voice originals, visible sticker crop fallbacks, and voice-origin UI transcripts by default, skipping audio export. Includes a sticker-record helper and offline visual review before ZIP delivery. |
 | [`skills/refactor-to-fastapi-react/`](skills/refactor-to-fastapi-react/) | Refactor a Python app that tangles UI and logic (Streamlit, Gradio, Flask, a CLI/monolith) into a clean **FastAPI + React/TypeScript (Vite) monorepo**, with a one-command `make` entrance, one-command lint for both languages (`make lint` → **ruff** + **prettier**), and an optional one-command **LAN host** (`make host` → `http://<machine>.local:<port>`). Ships battle-tested scaffold templates and a discover→change→verify workflow. |
 | [`skills/translate-documents/`](skills/translate-documents/) | Translate any document file (PDF, image, Office, HTML, text) out of any language into **two layout-preserving outputs**: an English-only copy and a bilingual English+Chinese copy. Handles flattened/scanned PDFs with no text layer via an OCR→spec→overlay pipeline (Apple Vision / Windows.Media.Ocr / tesseract + PyMuPDF, auto-selected per OS), with debug-overlay and reviewer verification gates. |
 

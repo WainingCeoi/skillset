@@ -34,7 +34,13 @@ Keep any necessary full UI screenshots private outside the package and repositor
   exact sent time. Record that context in provenance rather than copying it to each message.
 - Reply: preserve the visible quote, with a resolved reference only if the target is evidenced.
   An unresolved quote is valid and must not be silently linked by matching text alone.
-- Image/file/audio/video: use the UI's original download/save action. Preserve bytes, original
+- Voice: capture the displayed WeCom transcript or invoke the scoped built-in `转文字` action
+  by default. Preserve voice origin with `type:"voice"`, `text:null`, and
+  `voice.transcripts[].source:"wecom_ui"`, along with sender, time, order and duration.
+  Skip trying to export audio unless explicitly requested. Record audio as intentionally
+  not captured, without a dummy file; retain a transcript gap if conversion is unavailable.
+  See [voice-stickers.md](voice-stickers.md) for exact fields and stopping conditions.
+- Image/file/video: use the UI's original download/save action. Preserve bytes, original
   filename and media kind. Record expired, blocked, not downloaded, thumbnail-only and
   uncertain originals separately. Never label a thumbnail or screenshot as original media.
 - Stickers: inspect the sticker's right-click menu for `Save As GIF`,
@@ -51,7 +57,7 @@ Keep any necessary full UI screenshots private outside the package and repositor
   so the PNG, missing original, and same-message references are constructed together.
 - System/unsupported/deleted/recalled messages: retain what is visibly stated and record
   unknown payloads. Do not infer a recalled message's prior text or an unavailable file.
-- Derived OCR/transcription: opt-in local processing only; identify method, source attachment
+- Other OCR/transcription: opt-in local processing only; identify method, source attachment
   and uncertainty. Keep separate from original text and maintain the original media bytes.
 
 ## Checkpoint and resume

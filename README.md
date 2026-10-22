@@ -1,132 +1,77 @@
 # Skillset
 
-A collection of reusable [Agent Skills](https://docs.claude.com/en/docs/claude-code/skills) for
-Claude Code / the Claude Agent SDK. Each skill is a self-contained folder with a `SKILL.md`
-(the instructions + a triggering `description`) plus its bundled `assets/` (drop-in templates)
-and `references/` (deep-dive docs loaded on demand).
+Reusable skills for AI agents to translate documents, refactor Python apps, and capture WeCom chats.
 
-## Skills
+## Install a skill
 
-| Skill | What it does |
-|---|---|
-| [`skills/wecom-chat-capture/`](skills/wecom-chat-capture/) | Capture an authorized WeCom conversation/range through its open UI into verified ZIP batches, with unchanged non-voice originals, visible sticker crop fallbacks, and voice-origin UI transcripts by default, skipping audio export. Includes a sticker-record helper and offline visual review before ZIP delivery. |
-| [`skills/refactor-to-fastapi-react/`](skills/refactor-to-fastapi-react/) | Refactor a Python app that tangles UI and logic (Streamlit, Gradio, Flask, a CLI/monolith) into a clean **FastAPI + React/TypeScript (Vite) monorepo**, with a one-command `make` entrance, one-command lint for both languages (`make lint` → **ruff** + **prettier**), and an optional one-command **LAN host** (`make host` → `http://<machine>.local:<port>`). Ships battle-tested scaffold templates and a discover→change→verify workflow. |
-| [`skills/translate-documents/`](skills/translate-documents/) | Translate any document file (PDF, image, Office, HTML, text) out of any language into **two layout-preserving outputs**: an English-only copy and a bilingual English+Chinese copy. Handles flattened/scanned PDFs with no text layer via an OCR→spec→overlay pipeline (Apple Vision / Windows.Media.Ocr / tesseract + PyMuPDF, auto-selected per OS), with debug-overlay and reviewer verification gates. |
+You need [Node.js 22.20 or newer](https://nodejs.org/) and an AI agent supported by the
+[skills CLI](https://github.com/vercel-labs/skills).
 
-## Layout
+Copy a command below into your terminal, then select your agent when prompted.
+The `-g` flag makes the skill available across your projects; omit it to install only in the current project.
+After installing, open your agent and try the example request.
 
-```
-skillset/
-├── README.md
-├── LICENSE
-├── scripts/
-│   └── package_skills.py        # deterministic .skill build + stale-bundle check
-├── tests/                    # regression tests for the shipped assets/tooling
-└── skills/
-    ├── refactor-to-fastapi-react/
-    │   ├── SKILL.md          # instructions + triggering description (required)
-    │   ├── assets/           # drop-in scaffold templates (Makefile, host.py, app-factory, …)
-    │   └── references/       # deep-dives loaded on demand (SSE, architecture, LAN host, discovery)
-    ├── wecom-chat-capture/
-    │   ├── SKILL.md          # scoped WeCom UI capture and authorization boundaries
-    │   ├── agents/          # skill discovery metadata
-    │   ├── scripts/         # offline validation, normalization, preview, pack and resume
-    │   ├── assets/          # synthetic mixed-media baseline + incremental examples
-    │   └── references/      # canonical Slinx v1 schemas, UI workflow and usage
-    └── translate-documents/
-        ├── SKILL.md          # the two-file contract + the OCR→spec→overlay pipeline
-        ├── assets/           # Vision/Windows OCR, overlay_translate.py, spec-example.json
-        └── references/       # ocr-pipeline.md, formats.md (text-layer PDF / Office / text paths)
-```
+### Translate documents
 
-Skills live under `skills/` (the layout the `skills` CLI discovers). Add more by dropping another
-`skills/<skill-name>/` folder, each with its own `SKILL.md`. Keep the folder name lowercase-kebab
-and matching the `name:` field in that `SKILL.md`'s frontmatter so it loads cleanly.
-
-## Installing
-
-### Everything, one command
-
-With the [`skills` CLI](https://github.com/vercel-labs/skills) — installs every skill in
-this repo, for every detected agent, no prompts (`--all` = `--skill '*' --agent '*' -y`):
+Translate PDFs, images, Office files, and text while preserving their layout.
+Get an English copy and a bilingual English–Chinese copy.
 
 ```bash
-npx skills add WainingCeoi/skillset --all -g
+npx skills add WainingCeoi/skillset --skill translate-documents -g
 ```
 
-`-g` installs user-level into `~/.claude/skills/`; drop it to install into the current
-project's `.claude/skills/` instead. From a local clone, the no-tooling equivalent:
+**Try:** “Translate this PDF into English and a bilingual English–Chinese copy.”
 
-```bash
-cp -R skills/* ~/.claude/skills/
-```
+[Skill details](skills/translate-documents/SKILL.md)
 
-### A single skill
+### Refactor to FastAPI + React
+
+Turn an existing Python app, such as Streamlit or Gradio, into a FastAPI backend and React frontend.
 
 ```bash
 npx skills add WainingCeoi/skillset --skill refactor-to-fastapi-react -g
 ```
 
-…or copy one folder directly (`cp -R skills/refactor-to-fastapi-react ~/.claude/skills/`),
-or install its packaged `.skill` bundle from the Claude Code / claude.ai skills UI.
+**Try:** “Refactor this Streamlit app into FastAPI and React.”
 
-Once installed, a skill triggers automatically when a request matches its `description`
-(e.g. "get this Streamlit app off Streamlit and give it a real backend + frontend", or
-"translate this PDF to English").
+[Skill details](skills/refactor-to-fastapi-react/SKILL.md)
 
-### Packaging bundles
+### Capture WeCom chats
 
-The folders in `skills/` are the source of truth. Build deterministic `.skill` archives before
-attaching a release or using the skills UI, then verify that no archive is stale:
+Save a selected WeCom conversation as a local ZIP with messages and available attachments.
+Requires WeCom to be open and signed in, and an agent with computer-use tools.
+
+```bash
+npx skills add WainingCeoi/skillset --skill wecom-chat-capture -g
+```
+
+**Try:** “Capture today's messages from this WeCom conversation and save them as a ZIP.”
+
+[Skill details](skills/wecom-chat-capture/SKILL.md) · [Usage guide](skills/wecom-chat-capture/references/usage.md)
+
+## Install all skills
+
+```bash
+npx skills add WainingCeoi/skillset --skill '*' -g
+```
+
+Select the agent you want to use when prompted.
+
+<details>
+<summary>Maintainer commands</summary>
+
+Run from the repository root. The full test suite requires `uv`, Node.js 22.6+, and `make`.
 
 ```bash
 python3 scripts/package_skills.py build
 python3 scripts/package_skills.py --check
-```
-
-The generated root-level `.skill` files are intentionally ignored by Git. Run `--check` in CI or
-immediately before publishing to catch missing files, stale content, or unexpected bundle entries.
-The packager excludes standard generated cruft (`__pycache__`, `.DS_Store`, `.pyc`, `.pyo`) and
-rejects symlinks rather than following files outside a skill folder.
-
-### Regression tests
-
-Run the repository checks with PyMuPDF available:
-
-```bash
 uv run --with pymupdf python -m unittest discover -s tests -v
 ```
 
-The raw TypeScript transport test also needs Node 22.6+ (for built-in type stripping), and the
-process-supervisor test needs `make`. These are test-harness requirements; generated Vite projects
-retain the Node version range documented in their own README.
+Generated `.skill` bundles are ignored by Git; edit the folders under `skills/`.
 
-The WeCom helper needs only Python 3.10+ and the standard library. Its tests use invented
-messages and media without opening WeCom or uploading anything:
-
-```bash
-python3 -m unittest discover -s tests -p 'test_wecom_capture.py' -v
-```
-
-See [WeCom usage](skills/wecom-chat-capture/references/usage.md) for deterministic
-baseline/delta examples and [the contract](skills/wecom-chat-capture/references/contract.md)
-for explicit prior-batch media and overlap review semantics.
+</details>
 
 ## License
 
-Copyright (C) 2026 Waining Ceoi
-
-This project is licensed under the **GNU General Public License v3.0** — see the
-[`LICENSE`](LICENSE) file for the full text.
-
-This is free software: you can redistribute it and/or modify it under the terms of the GPL as
-published by the Free Software Foundation, either version 3 of the License, or (at your option)
-any later version. It is distributed in the hope that it will be useful, but WITHOUT ANY
-WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
-PURPOSE.
-
-> Note: the scaffold files under each skill's `assets/` are meant to be **copied into the
-> projects you generate**. GPL-3.0 is copyleft, so if you want code scaffolded from these
-> templates to be freely licensed by its authors, keep the templates as-is; if you'd rather the
-> generated projects carry no license obligation, relicense just the `assets/` under a permissive
-> license (e.g. MIT) or add a template exception. Choose deliberately before publishing.
+[GNU General Public License v3.0](LICENSE).

@@ -61,6 +61,29 @@ Reuse established cleanup mechanisms where they provide these guarantees. A bare
 `git clean -fdx`, `git reset --hard`, or recursive delete is not the reset planner.
 Do not copy Git-ignored secrets into a tracked backup as a reset precaution.
 
+## Identify running consumers
+
+Use the checkout lock for managed commands. For manually launched consumers, match
+the actual executable and its invocation against the project's server, worker,
+and other entry points that use resettable state. An open database or a running
+executable from a dependency directory in the deletion plan is also evidence.
+Use the working directory to place a process in the checkout. A generic runtime
+name, a matching word in an argument, or the checkout working directory alone
+is insufficient evidence of a consumer.
+
+Distinguish externally installed editor language servers and their passive
+helpers from app processes. For example, an editor's `ruff server`, Jedi
+language server, or Jedi inference subprocess can inherit the checkout working
+directory while running from an external installation. Keep the existing checks
+for checkout-local executables, open state, and real app invocations, including
+when launched by an editor. Report verified blockers by process name or role and
+PID. Avoid printing raw command lines that can contain secrets.
+
+In a disposable checkout, verify that passive editor helpers can stay running
+through preview and cancellation, and that a manually launched project process
+still blocks reset before deletion. Exercise any database or other state-handle
+guard the project uses.
+
 ## Rebuild and exit
 
 Recreate missing local configuration from templates, prepare the pinned dependencies

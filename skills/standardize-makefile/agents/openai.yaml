@@ -1,0 +1,4 @@
+interface:
+  display_name: "Standardize Makefile"
+  short_description: "Consolidate existing Make commands into four core entry points"
+  default_prompt: "Use $standardize-makefile to consolidate this project’s existing Make commands into help, dev, init, and test, reusing implementations and retiring superseded targets."

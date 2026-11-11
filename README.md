@@ -1,6 +1,6 @@
 # Skillset
 
-Reusable skills for AI agents to translate documents, refactor Python apps, and capture WeCom chats.
+Reusable skills for AI agents to translate documents, refactor Python apps, standardize Makefiles, and capture WeCom chats.
 
 ## Install a skill
 
@@ -35,6 +35,20 @@ npx skills add WainingCeoi/skillset --skill refactor-to-fastapi-react -g
 **Try:** “Refactor this Streamlit app into FastAPI and React.”
 
 [Skill details](skills/refactor-to-fastapi-react/SKILL.md)
+
+### Standardize Makefile commands
+
+Give an existing project consistent `make help`, `make dev`, `make init`, and `make test`
+commands. The skill adapts startup and isolated frontend/backend tests to the project's
+actual dependencies; `init` previews and confirms a local reset before rebuilding.
+
+```bash
+npx skills add WainingCeoi/skillset --skill standardize-makefile -g
+```
+
+**Try:** “Standardize this project's Makefile with help, dev, init, and test.”
+
+[Skill details](skills/standardize-makefile/SKILL.md)
 
 ### Capture WeCom chats
 

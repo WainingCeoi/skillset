@@ -7,6 +7,13 @@ in non-watch mode. Discover native commands from manifests, fixtures, and CI. Re
 existing test gates; do not replace behavioral tests with a build or lint command.
 Do not introduce a new test framework or E2E suite merely to standardize the entry point.
 
+Fold existing `test-backend`, `test-frontend`, and equivalent Make commands into
+`make test`. If separate suites are useful, expose an explicit selector such as
+`TEST_SUITE=all|backend|frontend`, defaulting to `all`; migrate CI and developer
+instructions to this option, then remove the old targets and aliases. Reuse the same
+runner and its native suite selection rather than duplicating each command's logic.
+Retain existing lint/build gates in the default full check.
+
 For a genuinely absent layer or a layer with no existing suite, report that absence
 clearly. Do not invent tests to populate the command. An expected suite that cannot
 be discovered, collects zero selected tests, or lacks required dependencies is a
@@ -20,7 +27,9 @@ or download models. Point to the documented setup path or `make dev`, not the de
 
 If exposing selectors, route frontend and backend arguments independently, for example
 `FRONTEND_TEST_ARGS` and `BACKEND_TEST_ARGS`. Document quoting and partial-suite output;
-do not forward pytest options to a different runner or silently skip the other layer.
+do not forward pytest options to a different runner. With the default full-suite
+scope, filtering one layer must not silently skip the other; an explicit suite choice
+must be reported as a partial run.
 Preserve compatible existing selector names where useful. Avoid shell `eval` of supplied
 arguments; use the runner's native argument interface.
 
@@ -79,5 +88,6 @@ Handle normal completion, failure, and Ctrl+C by stopping and reaping owned proc
 and databases only. Do not stop another developer's server by port or process name.
 Preserve failure logs and useful diagnostics in a Git-ignored or temporary run directory;
 print the location and a concise per-suite summary. Preserve existing CI report formats
-and shared entry points where possible, without importing an unrelated CI sharding,
-Docker, or deployment system.
+and migrate CI callers to the shared `make test` interface, using explicit suite
+selection where necessary. Do not import an unrelated CI sharding, Docker, or
+deployment system.

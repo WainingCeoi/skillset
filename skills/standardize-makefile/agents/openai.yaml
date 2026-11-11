@@ -1,4 +1,4 @@
 interface:
   display_name: "Standardize Makefile"
-  short_description: "Standardize help, dev, init, and test for existing projects"
-  default_prompt: "Use $standardize-makefile to standardize this project’s make help, make dev, make init, and make test commands around its actual dependencies."
+  short_description: "Consolidate existing Make commands into four core entry points"
+  default_prompt: "Use $standardize-makefile to consolidate this project’s existing Make commands into help, dev, init, and test, reusing implementations and retiring superseded targets."

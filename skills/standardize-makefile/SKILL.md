@@ -1,19 +1,20 @@
 ---
 name: standardize-makefile
 description: >-
-  Create or refactor a project's Makefile around make help, make dev, make init,
-  and make test. Use when the user wants consistent development setup, a confirmed
-  local reset, and frontend/backend test entry points adapted to the project's
-  actual dependencies. This standardizes project commands without changing its
-  application stack or replacing file-based build rules.
+  Consolidate an existing project's Make commands into exactly four public entry
+  points: make help, make dev, make init, and make test. Use when the user wants
+  existing setup, startup, reset, and test behavior unified around the project's
+  actual dependencies. Reuse existing implementations, retire superseded commands,
+  and add only missing behavior; do not change the application stack.
 ---
 
 # Standardize Makefile
 
-Give an existing project four predictable entry points. Keep the Makefile thin;
-reuse or adapt its scripts, package-manager commands, and test runners. Standardize
-observable behavior without importing another project's framework, directory layout,
-database, runtime versions, ports, or specialized services.
+Consolidate the project's existing command surface into **exactly `help`, `dev`,
+`init`, and `test`**. Reuse compliant behavior, adapt partial implementations, and
+add code only for missing behavior. Keep the Makefile thin and retain its useful
+scripts, package-manager commands, and test runners. Do not import another project's
+framework, directory layout, database, runtime versions, ports, or specialized services.
 
 ## Discover the project
 
@@ -30,12 +31,15 @@ Identify:
   which settings can redirect the app to shared or production resources.
 - How each existing test suite runs, what state it mutates, and whether its runner
   already provides isolation, concurrency limits, reports, and cleanup.
-- Existing Make targets, script callers, CI entry points, and documented commands
-  that need to keep working.
+- Existing Make targets and their behavior, plus script, CI, and documentation callers
+  that must migrate to the consolidated interface.
 
-State the resulting command mapping briefly before implementation. Resolve ordinary
-choices from the repository. Clarify only consequential ambiguity, such as a database
-that appears optional in the manifest but is required by the application at startup.
+Classify each core behavior as compliant, partial, or missing. State an old-to-new
+command mapping before implementation, including which targets will be removed and
+how their callers move. Do not build a parallel implementation of behavior the project
+already provides. Resolve ordinary choices from the repository. Clarify only
+consequential ambiguity, such as a database that appears optional in the manifest
+but is required by the application at startup.
 Do not add PostgreSQL, Redis, Docker, a worker, or a test framework just to fill a template.
 
 ## Command contract
@@ -47,11 +51,28 @@ Do not add PostgreSQL, Redis, Docker, a worker, or a test framework just to fill
 | `make init` | Preview and confirm a reset of this checkout's ignored local state, rebuild the development environment, then exit without leaving the app running. |
 | `make test` | Run all existing frontend and backend test suites in non-watch mode, with isolated mutable state and a reliable aggregate result. |
 
-Set `.DEFAULT_GOAL := help` and mark these command targets `.PHONY`. Preserve existing
-file-based build rules and useful project-specific targets. Keep lint, build, deployment,
-scoring, and specialized acceptance commands where they already belong; do not add
-them as mandatory parts of this standard. Preserve existing test gates unless the
-user authorizes changing them.
+Set `.DEFAULT_GOAL := help` and mark these four command targets `.PHONY`. Remove
+superseded public targets and compatibility aliases after migrating their callers;
+hiding them from help does not complete consolidation. Do not retain an `all`,
+`install`, `test-backend`, or other public Make command alongside the four. Genuine
+file-based build dependencies may remain internal implementation rules.
+
+Map existing behavior by purpose:
+
+- Dependency installation becomes shared preparation used by `dev` and `init`.
+- Development launch commands become `dev`, reusing the existing service startup code.
+- Existing lint/build gates remain part of `test` when already required there.
+- Single-suite testing uses an explicit option such as `make test TEST_SUITE=backend`,
+  with all existing suites as the default; do not keep separate Make targets.
+- Consolidate cleanup into `init` and remove separate `clean` targets and aliases.
+  Reuse cleanup internals within the confirmed reset contract, making its full
+  configuration and local-data scope explicit.
+
+Keep specialized production, deployment, scoring, or acceptance capabilities available
+through documented native tools or scripts when still needed. Do not add extra Make
+targets for them or force their side effects into `dev` or `test`. Do not introduce
+one mode or wrapper for every retired target merely to reproduce the old interface.
+Preserve existing test gates unless the user authorizes changing them.
 
 Help must describe `init` as a destructive local reset, not a prerequisite for first
 use. Advertise only supported options and services. Use overrideable defaults such as
@@ -106,12 +127,18 @@ isolation, resource, and failure-reporting requirements.
 
 ## Integrate and verify
 
+Migrate CI, scripts, setup instructions, and code comments to the four-command
+interface or the retained native procedures. Remove superseded targets, aliases,
+duplicate orchestration, and helpers whose last live caller was removed; search again
+for stale references. Keep useful underlying implementations and their tests when
+they still have callers. Follow the repository's testing and approval rules.
+
 Update existing setup documentation with the four commands, prerequisites, supported
 options, reset scope, and test report location. Keep durable behavior there and
-one-off implementation notes outside tracked docs. Follow the repository's testing
-and approval rules. Remove replaced helpers only after checking their live callers;
-do not remove unrelated targets or tests.
+one-off implementation notes outside tracked docs.
 
+Verify the actual public Make command set is exactly the four core commands, not just
+the displayed help list. Check that migrated CI and script callers use live commands.
 Run `make help` and check changed scripts with the project's existing tooling. Exercise
 startup, readiness, shutdown, and test orchestration in an isolated disposable checkout
 or fixture with synthetic configuration. Verify that a failure in either test suite
@@ -120,6 +147,7 @@ against disposable data; preserve the user's live environment. A dry run alone d
 not demonstrate process cleanup or reset safety. If runtime prerequisites prevent a
 check, state the unverified behavior rather than claiming it passed.
 
-Report the command mapping, the services detected or omitted, validation performed,
-and any remaining prerequisites. Keep implementation proportional to the project;
-a frontend-only app should not inherit a backend process supervisor or database runner.
+Report the old-to-new mapping, targets merged or removed, implementations reused,
+services detected or omitted, validation performed, and remaining prerequisites.
+Keep implementation proportional to the project; a frontend-only app should not
+inherit a backend process supervisor or database runner.

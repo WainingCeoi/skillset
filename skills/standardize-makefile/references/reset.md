@@ -4,6 +4,11 @@
 exists. First-time setup is also supported by `make dev`; `init` is never an automatic
 dependency of `dev` or `test`.
 
+Reuse existing reset/cleanup code where its behavior fits this contract. Consolidate
+cleanup into `init` and remove other Make reset/cleanup entry points and aliases.
+Use the confirmed Git-ignore cleanup and rebuild behavior below, including local
+configuration and data in the preview; do not add a separate `clean` command.
+
 ## Scope and preview
 
 Use the checkout's effective Git ignore rules, including local/global exclusions, to

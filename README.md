@@ -38,15 +38,16 @@ npx skills add WainingCeoi/skillset --skill refactor-to-fastapi-react -g
 
 ### Standardize Makefile commands
 
-Give an existing project consistent `make help`, `make dev`, `make init`, and `make test`
-commands. The skill adapts startup and isolated frontend/backend tests to the project's
-actual dependencies; `init` previews and confirms a local reset before rebuilding.
+Consolidate an existing project's Make commands into exactly `make help`, `make dev`,
+`make init`, and `make test`. The skill reuses existing implementations, merges partial
+behavior, retires superseded targets and migrates their callers. It adapts startup and
+isolated tests to the actual dependencies; `init` confirms a local reset before rebuilding.
 
 ```bash
 npx skills add WainingCeoi/skillset --skill standardize-makefile -g
 ```
 
-**Try:** “Standardize this project's Makefile with help, dev, init, and test.”
+**Try:** “Consolidate this project's existing Make commands into help, dev, init, and test.”
 
 [Skill details](skills/standardize-makefile/SKILL.md)
 

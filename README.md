@@ -1,6 +1,6 @@
 # Skillset
 
-Reusable skills for AI agents to translate documents, refactor Python apps, standardize Makefiles, and capture WeCom chats.
+Reusable skills for AI agents to translate documents, refactor Python apps, standardize Makefiles, and export WeCom chats.
 
 ## Install a skill
 
@@ -51,18 +51,20 @@ npx skills add WainingCeoi/skillset --skill standardize-makefile -g
 
 [Skill details](skills/standardize-makefile/SKILL.md)
 
-### Capture WeCom chats
+### Export WeCom chats for Slinx Talk
 
-Save a selected WeCom conversation as a local ZIP with messages and available attachments.
-Requires WeCom to be open and signed in, and an agent with computer-use tools.
+Export a date range from a WeCom group on macOS. The skill saves a structured `messages.jsonl`,
+available attachments, an export report, and a single Slinx-compatible ZIP under `~/Downloads/data/` by default.
+Capture requires a signed-in WeCom client and an agent with computer-use tools. ZIP validation
+uses a local Slinx Talk checkout with its backend Python environment installed.
 
 ```bash
-npx skills add WainingCeoi/skillset --skill wecom-chat-capture -g
+npx skills add WainingCeoi/skillset --skill wecom-slinx-export -g
 ```
 
-**Try:** “Capture today's messages from this WeCom conversation and save them as a ZIP.”
+**Try:** “Export last month's messages and available attachments from this WeCom group as one Slinx ZIP.”
 
-[Skill details](skills/wecom-chat-capture/SKILL.md) · [Usage guide](skills/wecom-chat-capture/references/usage.md)
+[Skill details](skills/wecom-slinx-export/SKILL.md) · [Archive and validation guide](skills/wecom-slinx-export/references/complete-archive.md) · [Forwarded messages and source references](skills/wecom-slinx-export/references/forwarded-evidence.md)
 
 ## Install all skills
 

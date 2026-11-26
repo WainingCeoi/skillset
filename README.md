@@ -59,12 +59,12 @@ Capture requires a signed-in WeCom client and an agent with computer-use tools. 
 uses a local Slinx Talk checkout with its backend Python environment installed.
 
 ```bash
-npx skills add WainingCeoi/skillset --skill wecom-slinx-export -g
+npx skills add WainingCeoi/skillset --skill wecom-export -g
 ```
 
 **Try:** “Export last month's messages and available attachments from this WeCom group as one Slinx ZIP.”
 
-[Skill details](skills/wecom-slinx-export/SKILL.md) · [Archive and validation guide](skills/wecom-slinx-export/references/complete-archive.md) · [Forwarded messages and source references](skills/wecom-slinx-export/references/forwarded-evidence.md)
+[Skill details](skills/wecom-export/SKILL.md) · [Archive and validation guide](skills/wecom-export/references/complete-archive.md) · [Forwarded messages and source references](skills/wecom-export/references/forwarded-evidence.md)
 
 ## Install all skills
 

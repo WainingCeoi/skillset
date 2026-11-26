@@ -1,5 +1,5 @@
 ---
-name: wecom-slinx-export
+name: wecom-export
 description: 将 Mac 企业微信指定群和日期范围（包括多个月）导出为类似 WhatsApp 的 messages.jsonl 与 media/，保留单个 Slinx 兼容 ZIP，不生成 HTML。逐条核实转发内部的发送人、时间、引用和附件归属，支持 RAG 追溯、样本验证及保留原件的媒体压缩。
 ---
 
